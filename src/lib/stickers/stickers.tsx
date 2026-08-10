@@ -1,4 +1,6 @@
-export const STICKERS: Record<string, JSX.Element> = {
+import type { ReactElement } from "react";
+
+export const STICKERS: Record<string, ReactElement> = {
   happy: (
     <svg viewBox="0 0 60 60" width="100%" height="100%">
       <circle cx="30" cy="30" r="26" fill="#F5A742" />

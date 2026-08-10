@@ -20,9 +20,10 @@ export async function getFriendsWithActiveReels() {
     .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
   const friendMap = new Map<string, any>();
-  (friendRows || []).forEach((row) => {
+  (friendRows || []).forEach((row: any) => {
     const isSender = row.sender_id === user.id;
-    const friend = isSender ? row.receiver : row.sender;
+    const rawFriend = isSender ? row.receiver : row.sender;
+    const friend = Array.isArray(rawFriend) ? rawFriend[0] : rawFriend;
     if (friend && !friendMap.has(friend.id)) friendMap.set(friend.id, friend);
   });
   const friends = Array.from(friendMap.values());

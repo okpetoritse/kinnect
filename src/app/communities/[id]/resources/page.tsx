@@ -57,6 +57,7 @@ export default async function ResourcesPage({
       <ResourcesList
         communityId={id}
         currentUserId={user.id}
+        currentUserName={user.user_metadata?.full_name || "You"}
         initialResources={resources as any}
       />
     </main>

@@ -10,7 +10,9 @@ export async function createCommunity(formData: FormData) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in" };
+  if (!user) {
+    redirect(`/communities/new?error=${encodeURIComponent("Not logged in")}`);
+  }
 
   const name = (formData.get("name") as string)?.trim();
   const description = (formData.get("description") as string)?.trim();
@@ -19,9 +21,11 @@ export async function createCommunity(formData: FormData) {
   const goalTarget = formData.get("goalTarget") as string;
   const goalDeadline = formData.get("goalDeadline") as string;
 
-  if (!name) return { error: "Community name is required" };
+  if (!name) {
+    redirect(`/communities/new?error=${encodeURIComponent("Community name is required")}`);
+  }
   if (isGoal && (!goalMetricLabel || !goalTarget)) {
-    return { error: "Goal communities need a unit and a target" };
+    redirect(`/communities/new?error=${encodeURIComponent("Goal communities need a unit and a target")}`);
   }
 
   const { data: community, error } = await supabase
@@ -29,7 +33,7 @@ export async function createCommunity(formData: FormData) {
     .insert({
       name,
       description,
-      created_by: user.id,
+      created_by: user!.id,
       is_goal: isGoal,
       goal_metric_label: isGoal ? goalMetricLabel : null,
       goal_target: isGoal ? Number(goalTarget) : null,
@@ -39,23 +43,23 @@ export async function createCommunity(formData: FormData) {
     .single();
 
   if (error || !community) {
-    return { error: error?.message || "Could not create community" };
+    redirect(`/communities/new?error=${encodeURIComponent(error?.message || "Could not create community")}`);
   }
 
   const { error: memberError } = await supabase
     .from("community_members")
     .insert({
-      community_id: community.id,
-      user_id: user.id,
+      community_id: community!.id,
+      user_id: user!.id,
       role: "admin",
     });
 
   if (memberError) {
-    return { error: memberError.message };
+    redirect(`/communities/new?error=${encodeURIComponent(memberError.message)}`);
   }
 
   revalidatePath("/communities");
-  redirect(`/communities/${community.id}`);
+  redirect(`/communities/${community!.id}`);
 }
 
 export async function joinCommunity(communityId: string) {
@@ -94,7 +98,10 @@ export async function getCommunityPosts(communityId: string) {
     return [];
   }
 
-  return data;
+  return (data || []).map((p: any) => ({
+    ...p,
+    author: Array.isArray(p.author) ? p.author[0] : p.author,
+  }));
 }
 
 export async function createPost(
@@ -142,7 +149,10 @@ export async function getCommunityMessages(communityId: string) {
     return [];
   }
 
-  return data;
+  return (data || []).map((m: any) => ({
+    ...m,
+    sender: Array.isArray(m.sender) ? m.sender[0] : m.sender,
+  }));
 }
 
 export async function sendCommunityMessage(
@@ -247,33 +257,37 @@ export async function getEventRsvps(eventIds: string[]) {
 }
 
 export async function createEvent(formData: FormData) {
+  const communityId = formData.get("communityId") as string;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in" };
+  if (!user) {
+    redirect(`/communities/${communityId}/calendar/new?error=${encodeURIComponent("Not logged in")}`);
+  }
 
-  const communityId = formData.get("communityId") as string;
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim();
   const eventDate = formData.get("eventDate") as string;
   const location = (formData.get("location") as string)?.trim();
 
   if (!title || !eventDate) {
-    return { error: "Title and date are required" };
+    redirect(`/communities/${communityId}/calendar/new?error=${encodeURIComponent("Title and date are required")}`);
   }
 
   const { error } = await supabase.from("community_events").insert({
     community_id: communityId,
-    created_by: user.id,
+    created_by: user!.id,
     title,
     description: description || null,
     event_date: new Date(eventDate).toISOString(),
     location: location || null,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    redirect(`/communities/${communityId}/calendar/new?error=${encodeURIComponent(error.message)}`);
+  }
 
   revalidatePath(`/communities/${communityId}/calendar`);
   redirect(`/communities/${communityId}/calendar`);
@@ -321,31 +335,37 @@ export async function getCommunityTasks(communityId: string) {
 }
 
 export async function createTask(formData: FormData) {
+  const communityId = formData.get("communityId") as string;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in" };
+  if (!user) {
+    redirect(`/communities/${communityId}/tasks/new?error=${encodeURIComponent("Not logged in")}`);
+  }
 
-  const communityId = formData.get("communityId") as string;
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim();
   const priority = formData.get("priority") as string;
   const dueDate = formData.get("dueDate") as string;
 
-  if (!title) return { error: "Title is required" };
+  if (!title) {
+    redirect(`/communities/${communityId}/tasks/new?error=${encodeURIComponent("Title is required")}`);
+  }
 
   const { error } = await supabase.from("community_tasks").insert({
     community_id: communityId,
-    created_by: user.id,
+    created_by: user!.id,
     title,
     description: description || null,
     priority: priority || "medium",
     due_date: dueDate ? new Date(dueDate).toISOString() : null,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    redirect(`/communities/${communityId}/tasks/new?error=${encodeURIComponent(error.message)}`);
+  }
 
   revalidatePath(`/communities/${communityId}/tasks`);
   redirect(`/communities/${communityId}/tasks`);
@@ -427,14 +447,16 @@ export async function getCommunityPolls(communityId: string) {
 }
 
 export async function createPoll(formData: FormData) {
+  const communityId = formData.get("communityId") as string;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in" };
+  if (!user) {
+    redirect(`/communities/${communityId}/polls/new?error=${encodeURIComponent("Not logged in")}`);
+  }
 
-  const communityId = formData.get("communityId") as string;
   const question = (formData.get("question") as string)?.trim();
   const allowMultiple = formData.get("allowMultiple") === "on";
   const optionLabels = formData
@@ -443,14 +465,14 @@ export async function createPoll(formData: FormData) {
     .filter(Boolean);
 
   if (!question || optionLabels.length < 2) {
-    return { error: "Question and at least 2 options are required" };
+    redirect(`/communities/${communityId}/polls/new?error=${encodeURIComponent("Question and at least 2 options are required")}`);
   }
 
   const { data: poll, error } = await supabase
     .from("community_polls")
     .insert({
       community_id: communityId,
-      created_by: user.id,
+      created_by: user!.id,
       question,
       allow_multiple: allowMultiple,
     })
@@ -458,20 +480,22 @@ export async function createPoll(formData: FormData) {
     .single();
 
   if (error || !poll) {
-    return { error: error?.message || "Could not create poll" };
+    redirect(`/communities/${communityId}/polls/new?error=${encodeURIComponent(error?.message || "Could not create poll")}`);
   }
 
   const { error: optionsError } = await supabase
     .from("community_poll_options")
     .insert(
       optionLabels.map((label, i) => ({
-        poll_id: poll.id,
+        poll_id: poll!.id,
         label,
         position: i,
       }))
     );
 
-  if (optionsError) return { error: optionsError.message };
+  if (optionsError) {
+    redirect(`/communities/${communityId}/polls/new?error=${encodeURIComponent(optionsError.message)}`);
+  }
 
   revalidatePath(`/communities/${communityId}/polls`);
   redirect(`/communities/${communityId}/polls`);
