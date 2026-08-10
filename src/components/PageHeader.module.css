@@ -1,0 +1,29 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+}
+
+.backBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.backBtn:hover {
+  background: var(--border-subtle);
+}
+
+.title {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 19px;
+  font-weight: 600;
+}

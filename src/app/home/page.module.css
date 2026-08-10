@@ -1,0 +1,178 @@
+.wrapper {
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.greeting {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 24px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.seeAll {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--coral);
+}
+
+.section {
+  margin-bottom: 28px;
+}
+
+.conversationRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--pink-tint);
+  color: var(--pink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.conversationBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.conversationName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.conversationPreview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.communityRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+
+.communityCover {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.communityName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.eventRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+
+.eventDateBadge {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-tint);
+  color: var(--amber);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.eventMonth {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.eventDay {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.eventTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.empty {
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 4px 0;
+}
+
+.greetingCard {
+  background: linear-gradient(135deg, var(--coral), var(--pink));
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.greetingText {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.greetingSub {
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+.sectionHeaderRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

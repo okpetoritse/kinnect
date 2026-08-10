@@ -1,26 +1,90 @@
-@import "tailwindcss";
-
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core palette */
+  --coral: #FF6F59;
+  --amber: #F5A742;
+  --pink: #E85D8A;
+  --teal: #2A9D8F;
+  --cream: #FFFBF8;
+
+  /* Soft tint backgrounds (for icon marks, badges, subtle fills) */
+  --coral-tint: #FFE9E4;
+  --amber-tint: #FDF0DD;
+  --pink-tint: #FBE3EC;
+  --teal-tint: #E0F2EF;
+
+  /* Surfaces & text */
+  --surface: #FFFFFF;
+  --background: var(--cream);
+  --text-primary: #2B2320;
+  --text-secondary: #8A7F79;
+  --border-subtle: #F0E6E0;
+  --nav-height: 72px;
+
+  /* Elevation (soft shadows, no hard borders) */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.05);
+
+  /* Shape */
+  --radius: 16px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+
+  /* Fonts (wired up in layout.tsx) */
+  --font-display: var(--font-jakarta);
+  --font-body: var(--font-inter);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--text-primary);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+  border: none;
+  outline: none;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+.app-shell {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--background);
+  position: relative;
+}
+
+@media (min-width: 481px) {
+  body {
+    background: var(--border-subtle);
+  }
+
+  .app-shell {
+    box-shadow: var(--shadow-lg);
+  }
 }

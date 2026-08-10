@@ -1,0 +1,123 @@
+.wrapper {
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 4px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.name {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.headerActions {
+  display: flex;
+  gap: 8px;
+}
+
+.addBtn {
+  color: white;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.addLinkBtn {
+  background: var(--amber);
+}
+
+.uploadBtn {
+  background: var(--teal);
+}
+
+.fileInput {
+  display: none;
+}
+
+.list {
+  padding: 16px 20px;
+}
+
+.resourceCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.resourceIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.resourceIconLink {
+  background: var(--amber-tint);
+  color: var(--amber);
+}
+
+.resourceIconFile {
+  background: var(--teal-tint);
+  color: var(--teal);
+}
+
+.resourceBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.resourceTitle {
+  font-size: 14px;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.resourceDescription {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 2px 0 4px;
+}
+
+.resourceMeta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.deleteBtn {
+  color: var(--coral);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.empty {
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+  padding: 40px 0;
+}

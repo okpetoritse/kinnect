@@ -1,0 +1,187 @@
+.wrapper {
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 4px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.name {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.createBtn {
+  background: var(--teal);
+  color: white;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.columns {
+  padding: 16px 20px;
+}
+
+.column {
+  margin-bottom: 24px;
+}
+
+.columnTitle {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.columnCount {
+  background: var(--border-subtle);
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  font-size: 11px;
+}
+
+.taskCard {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 10px;
+}
+
+.taskTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.taskTitle {
+  font-size: 14px;
+  font-weight: 600;
+  flex: 1;
+}
+
+.priorityBadge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  flex-shrink: 0;
+}
+
+.priorityLow {
+  background: var(--teal-tint);
+  color: var(--teal);
+}
+
+.priorityMedium {
+  background: var(--amber-tint);
+  color: var(--amber);
+}
+
+.priorityHigh {
+  background: var(--coral-tint);
+  color: var(--coral);
+}
+
+.taskDescription {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.taskMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dueDate {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.dueDateOverdue {
+  color: var(--coral);
+  font-weight: 600;
+}
+
+.assignee {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.assigneeAvatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--pink-tint);
+  color: var(--pink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.assigneeName {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.claimBtn {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--teal);
+  background: var(--teal-tint);
+  border-radius: var(--radius-pill);
+  padding: 5px 10px;
+}
+
+.taskActions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.actionBtn {
+  flex: 1;
+  padding: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.emptyColumn {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+}

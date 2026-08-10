@@ -1,0 +1,152 @@
+.wrapper {
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 32px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--pink-tint);
+  color: var(--pink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 28px;
+  margin-bottom: 16px;
+}
+
+.name {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.email {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 32px;
+}
+
+.menu {
+  width: 100%;
+}
+
+.menuItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.signOutBtn {
+  color: var(--coral);
+  font-weight: 600;
+}
+
+.avatarWrapper {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.avatarUploadBtn {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--background);
+}
+
+.fileInput {
+  display: none;
+}
+
+.usernameSection {
+  width: 100%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.usernameLabel {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.usernameRow {
+  display: flex;
+  gap: 8px;
+}
+
+.usernameInputWrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+}
+
+.atSign {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.usernameInput {
+  flex: 1;
+  padding: 10px 4px;
+  font-size: 14px;
+}
+
+.usernameSaveBtn {
+  background: var(--coral);
+  color: white;
+  border-radius: var(--radius-sm);
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.usernameStatus {
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.usernameStatusOk {
+  color: var(--teal);
+}
+
+.usernameStatusErr {
+  color: var(--coral);
+}
+
+.currentUsername {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}

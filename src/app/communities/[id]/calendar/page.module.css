@@ -1,0 +1,138 @@
+.wrapper {
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 4px;
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.name {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.createBtn {
+  background: var(--amber);
+  color: white;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.list {
+  padding: 16px 20px;
+}
+
+.eventCard {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.dateBlock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.dateBadge {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-sm);
+  background: var(--amber-tint);
+  color: var(--amber);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dateMonth {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.dateDay {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.eventTitle {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.eventMeta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.eventDescription {
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.rsvpRow {
+  display: flex;
+  gap: 8px;
+}
+
+.rsvpBtn {
+  flex: 1;
+  padding: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.rsvpBtnActiveGoing {
+  background: var(--teal);
+  color: white;
+}
+
+.rsvpBtnActiveMaybe {
+  background: var(--amber);
+  color: white;
+}
+
+.rsvpBtnActiveNotGoing {
+  background: var(--coral);
+  color: white;
+}
+
+.rsvpCount {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.empty {
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: center;
+  padding: 40px 0;
+}

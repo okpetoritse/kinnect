@@ -1,0 +1,18 @@
+.avatarImage {
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--surface), var(--shadow-sm);
+}
+
+.avatarInitials {
+  border-radius: 50%;
+  background: var(--pink-tint);
+  color: var(--pink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px var(--surface), var(--shadow-sm);
+}
