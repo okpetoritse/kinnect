@@ -1,0 +1,58 @@
+.wrapper {
+  min-height: 100vh;
+  padding: 24px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.field {
+  margin-bottom: 16px;
+}
+
+.label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.input {
+  width: 100%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 15px;
+}
+
+.textarea {
+  width: 100%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  font-size: 14px;
+  min-height: 80px;
+  resize: none;
+}
+
+.submit {
+  width: 100%;
+  padding: 15px;
+  font-size: 15px;
+  font-weight: 600;
+  background: var(--coral);
+  color: white;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.error {
+  background: var(--coral-tint);
+  color: var(--coral);
+  font-size: 13px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 16px;
+  text-align: center;
+}

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { getHomeData } from "./actions";
 import styles from "./page.module.css";
 import { MessageCircle, Users, Calendar } from "lucide-react";
-import ReelStrip from "@/components/ReelStrip";
+import HomeCarousel from "@/components/HomeCarousel";
+import { getFriendsWithActiveReels } from "@/app/reels/actions";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -16,18 +17,16 @@ export default async function HomePage() {
 
   const { conversations, communities, events } = await getHomeData(user.id);
   const firstName = (user.user_metadata?.full_name || "there").split(" ")[0];
+  const friendsReels = await getFriendsWithActiveReels();
 
   return (
     <main className={styles.wrapper}>
-      <div className={styles.greetingCard}>
-        <ReelStrip currentUserId={user.id} />
-        <div className={styles.greetingText}>Hey, {firstName} 👋</div>
-        <div className={styles.greetingSub}>
-          {conversations.length > 0 || communities.length > 0
-            ? "Here's what's happening"
-            : "Let's get you connected"}
-        </div>
-      </div>
+      <HomeCarousel
+        firstName={firstName}
+        friendsReels={friendsReels as any}
+        currentUserId={user.id}
+        hasCommunities={communities.length > 0}
+      />
 
       <div className={styles.section}>
         <div className={styles.sectionHeader}>

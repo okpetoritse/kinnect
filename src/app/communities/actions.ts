@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { sendPushToUser } from "@/lib/notifications/sendPush";
 
 export async function createCommunity(formData: FormData) {
   const supabase = await createClient();
@@ -88,7 +89,7 @@ export async function getCommunityPosts(communityId: string) {
   const { data, error } = await supabase
     .from("community_posts")
     .select(
-      "id, content, image_url, video_url, created_at, author:profiles!community_posts_author_id_fkey(id, full_name)"
+      "id, content, image_url, video_url, is_promoted, promoted_until, created_at, author:profiles!community_posts_author_id_fkey(id, full_name)"
     )
     .eq("community_id", communityId)
     .order("created_at", { ascending: false });
@@ -98,10 +99,18 @@ export async function getCommunityPosts(communityId: string) {
     return [];
   }
 
-  return (data || []).map((p: any) => ({
+  const now = new Date();
+  const normalized = (data || []).map((p: any) => ({
     ...p,
     author: Array.isArray(p.author) ? p.author[0] : p.author,
   }));
+
+  const activePromoted = normalized.filter(
+    (p) => p.is_promoted && p.promoted_until && new Date(p.promoted_until) > now
+  );
+  const rest = normalized.filter((p) => !(p.is_promoted && p.promoted_until && new Date(p.promoted_until) > now));
+
+  return [...activePromoted, ...rest];
 }
 
 export async function createPost(
@@ -160,6 +169,7 @@ export async function sendCommunityMessage(
   content: string
 ) {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -173,6 +183,22 @@ export async function sendCommunityMessage(
   });
 
   if (error) return { error: error.message };
+
+  const { data: members } = await supabase
+    .from("community_members")
+    .select("user_id")
+    .eq("community_id", communityId)
+    .neq("user_id", user.id);
+
+  (members || []).forEach((m) =>
+    sendPushToUser(
+      m.user_id,
+      "New community message",
+      content.slice(0, 100),
+      `/communities/${communityId}/chat`
+    )
+  );
+
   return { success: true };
 }
 
@@ -840,6 +866,7 @@ export async function getPostSparks(postIds: string[]) {
 
 export async function toggleSpark(postId: string) {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -859,6 +886,7 @@ export async function toggleSpark(postId: string) {
       .delete()
       .eq("post_id", postId)
       .eq("user_id", user.id);
+
     return { sparked: false };
   }
 
@@ -866,6 +894,23 @@ export async function toggleSpark(postId: string) {
     post_id: postId,
     user_id: user.id,
   });
+
+  // Get the post author and community, then send notification
+  const { data: post } = await supabase
+    .from("community_posts")
+    .select("author_id, community_id")
+    .eq("id", postId)
+    .single();
+
+  if (post) {
+    sendPushToUser(
+      post.author_id,
+      "New spark ✦",
+      "Someone sparked your post",
+      `/communities/${post.community_id}`
+    );
+  }
+
   return { sparked: true };
 }
 
@@ -915,4 +960,45 @@ export async function toggleMessageSpark(messageId: string) {
     user_id: user.id,
   });
   return { sparked: true };
+}
+
+export async function getCommunitiesList(cursor?: string, query?: string) {
+  const supabase = await createClient();
+  const PAGE_SIZE = 20;
+
+  let request = supabase
+    .from("communities")
+    .select("id, name, description, cover_color, created_at")
+    .order("created_at", { ascending: false })
+    .limit(PAGE_SIZE);
+
+  if (cursor) {
+    request = request.lt("created_at", cursor);
+  }
+  if (query && query.trim()) {
+    request = request.or(`name.ilike.%${query}%,description.ilike.%${query}%`);
+  }
+
+  const { data: communities, error } = await request;
+  if (error || !communities) {
+    console.error(error);
+    return { communities: [], memberCounts: {}, nextCursor: null };
+  }
+
+  const ids = communities.map((c) => c.id);
+  const { data: memberRows } = ids.length
+    ? await supabase.from("community_members").select("community_id").in("community_id", ids)
+    : { data: [] };
+
+  const memberCounts: Record<string, number> = {};
+  (memberRows || []).forEach((m) => {
+    memberCounts[m.community_id] = (memberCounts[m.community_id] || 0) + 1;
+  });
+
+  const nextCursor =
+    communities.length === PAGE_SIZE
+      ? communities[communities.length - 1].created_at
+      : null;
+
+  return { communities, memberCounts, nextCursor };
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getMessagesFriendsPaginated } from "./actions";
 import Avatar from "@/components/Avatar";
 import styles from "./page.module.css";
 
@@ -14,14 +15,19 @@ type Friend = {
 };
 
 export default function MessagesList({
-  friends,
+  friends: initialFriends,
   currentUserId,
   initialUnreadCounts,
+  initialCursor,
 }: {
   friends: Friend[];
   currentUserId: string;
   initialUnreadCounts: Record<string, number>;
+  initialCursor: string | null;
 }) {
+  const [friends, setFriends] = useState(initialFriends);
+  const [cursor, setCursor] = useState(initialCursor);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState(initialUnreadCounts);
 
   useEffect(() => {
@@ -50,6 +56,15 @@ export default function MessagesList({
       clearInterval(interval);
     };
   }, [currentUserId]);
+
+  async function handleLoadMore() {
+    if (!cursor) return;
+    setLoadingMore(true);
+    const { friends: more, nextCursor } = await getMessagesFriendsPaginated(cursor);
+    setFriends((prev) => [...prev, ...(more as any)]);
+    setCursor(nextCursor);
+    setLoadingMore(false);
+  }
 
   if (friends.length === 0) {
     return (
@@ -86,6 +101,16 @@ export default function MessagesList({
           </Link>
         );
       })}
+
+      {cursor && (
+        <button
+          className={styles.loadMoreBtn}
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+        >
+          {loadingMore ? "Loading..." : "Load more"}
+        </button>
+      )}
     </>
   );
 }

@@ -29,6 +29,15 @@ export function useDMCall(
   }
 
   function createPeerConnection() {
+    if (pcRef.current) {
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.remove();
+      remoteAudioRef.current = null;
+    }
+
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
     localStreamRef.current?.getTracks().forEach((track) => {
@@ -131,7 +140,13 @@ export function useDMCall(
 
   async function startCall() {
     setCallState("calling");
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
     localStreamRef.current = stream;
 
     const pc = createPeerConnection();
@@ -146,7 +161,13 @@ export function useDMCall(
   }
 
   async function acceptCall() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
     localStreamRef.current = stream;
 
     const pc = createPeerConnection();

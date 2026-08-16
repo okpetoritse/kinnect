@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import styles from "./page.module.css";
 import MessagesList from "./MessagesList";
+import { getMessagesFriendsPaginated } from "./actions";
 
 export default async function MessagesPage() {
   const supabase = await createClient();
@@ -12,23 +13,7 @@ export default async function MessagesPage() {
 
   if (!user) redirect("/login");
 
-  const { data: friendRows } = await supabase
-    .from("friend_requests")
-    .select(
-      "sender_id, receiver_id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url), receiver:profiles!friend_requests_receiver_id_fkey(id, full_name, username, avatar_url)"
-    )
-    .eq("status", "accepted")
-    .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
-
-  const friendMap = new Map<string, any>();
-  (friendRows || []).forEach((row) => {
-    const isSender = row.sender_id === user.id;
-    const friend = isSender ? row.receiver : row.sender;
-    if (friend && !friendMap.has((friend as any).id)) {
-      friendMap.set((friend as any).id, friend);
-    }
-  });
-  const friends = Array.from(friendMap.values());
+  const { friends, nextCursor } = await getMessagesFriendsPaginated();
 
   const { data: unreadRows } = await supabase
     .from("messages")
@@ -49,6 +34,7 @@ export default async function MessagesPage() {
         friends={friends}
         currentUserId={user.id}
         initialUnreadCounts={unreadCounts}
+        initialCursor={nextCursor}
       />
     </main>
   );

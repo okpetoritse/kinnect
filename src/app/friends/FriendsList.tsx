@@ -5,6 +5,7 @@ import { getFriendsReelStatus, getReelEntries } from "@/app/reels/actions";
 import Avatar from "@/components/Avatar";
 import ReelViewer from "@/components/ReelViewer";
 import styles from "./page.module.css";
+import { getFriendsPaginated } from "./actions";
 
 type Friend = {
   id: string;
@@ -13,13 +14,20 @@ type Friend = {
   avatar_url: string | null;
 };
 
+
+
 export default function FriendsList({
-  friends,
+  friends: initialFriends,
   currentUserId,
+  initialCursor,
 }: {
   friends: Friend[];
   currentUserId: string;
+  initialCursor: string | null;
 }) {
+  const [friends, setFriends] = useState(initialFriends);
+  const [cursor, setCursor] = useState(initialCursor);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [status, setStatus] = useState<Record<string, { hasEntries: boolean; hasUnseenRecent: boolean }>>({});
   const [active, setActive] = useState<{
     name: string;
@@ -30,6 +38,16 @@ export default function FriendsList({
   useEffect(() => {
     getFriendsReelStatus().then(setStatus);
   }, []);
+
+
+  async function handleLoadMore() {
+    if (!cursor) return;
+    setLoadingMore(true);
+    const { friends: more, nextCursor } = await getFriendsPaginated(cursor);
+    setFriends((prev) => [...prev, ...(more as any)]);
+    setCursor(nextCursor);
+    setLoadingMore(false);
+  }
 
   async function handleAvatarTap(friend: Friend) {
     const s = status[friend.id];
@@ -87,6 +105,16 @@ export default function FriendsList({
           </div>
         );
       })}
+
+      {cursor && (
+        <button
+          className={styles.loadMoreBtn}
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+        >
+          {loadingMore ? "Loading..." : "Load more"}
+        </button>
+      )}
 
       {active && (
         <ReelViewer

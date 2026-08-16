@@ -10,12 +10,15 @@ import { Image as ImageIcon } from "lucide-react";
 import { getPostSparks, toggleSpark } from "../actions";
 import SparkButton from "@/components/SparkButton";
 import SparkToast from "@/components/SparkToast";
+import SponsoredBadge from "@/components/SponsoredBadge";
 
 type Post = {
   id: string;
   content: string;
   image_url: string | null;
   video_url: string | null;
+  is_promoted?: boolean;
+  promoted_until?: string | null;
   created_at: string;
   author: { id: string; full_name: string | null } | null;
   sparkedUserIds?: string[];
@@ -240,6 +243,9 @@ export default function Feed({
       {posts.length > 0 ? (
         posts.map((post) => (
           <div key={post.id} className={styles.post}>
+            {post.is_promoted &&
+              post.promoted_until &&
+              new Date(post.promoted_until) > new Date() && <SponsoredBadge />}
             <div className={styles.postAuthor}>
               <div ref={(el) => { avatarRefs.current[post.id] = el; }}>
                 <Avatar name={post.author?.full_name || "?"} size={32} />

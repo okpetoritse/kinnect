@@ -1,0 +1,12 @@
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--amber);
+  background: var(--amber-tint);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 4px;
+}

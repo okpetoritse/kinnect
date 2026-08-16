@@ -197,3 +197,41 @@ export async function getFriendsReelStatus() {
 
   return status;
 }
+
+export async function getActivePromotions() {
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+
+  const { data: posts } = await supabase
+    .from("community_posts")
+    .select("id, content, image_url, community_id, promoted_until")
+    .eq("is_promoted", true)
+    .gt("promoted_until", now)
+    .order("promoted_until", { ascending: true });
+
+  const { data: listings } = await supabase
+    .from("marketplace_listings")
+    .select("id, title, image_urls, promoted_until")
+    .eq("is_promoted", true)
+    .gt("promoted_until", now)
+    .order("promoted_until", { ascending: true });
+
+  const postSlides = (posts || []).map((p) => ({
+    type: "post" as const,
+    id: p.id,
+    href: `/communities/${p.community_id}`,
+    text: p.content || "Check out this post",
+    imageUrl: p.image_url,
+  }));
+
+  const listingSlides = (listings || []).map((l) => ({
+    type: "listing" as const,
+    id: l.id,
+    href: `/marketplace/${l.id}`,
+    text: l.title,
+    imageUrl: l.image_urls?.[0] || null,
+  }));
+
+  // Soonest-expiring promotions surface first, capped so Home never gets flooded
+  return [...postSlides, ...listingSlides].slice(0, 5);
+}

@@ -4,6 +4,9 @@ import { signout } from "@/app/auth/actions";
 import styles from "./page.module.css";
 import AvatarUpload from "./AvatarUpload";
 import UsernameEditor from "./UsernameEditor";
+import { getMyBusinessProfile } from "@/app/business/actions";
+import Link from "next/link";
+import DeleteAccountButton from "./DeleteAccountButton";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -19,6 +22,8 @@ export default async function ProfilePage() {
     .eq("id", user.id)
     .single();
 
+    const myBusiness = await getMyBusinessProfile();
+
   const name = profile?.full_name || "Unnamed";
 
   return (
@@ -33,11 +38,32 @@ export default async function ProfilePage() {
       <UsernameEditor initialUsername={profile?.username || null} />
 
       <div className={styles.menu}>
+        <Link
+          href={myBusiness ? `/business/${myBusiness.id}` : "/business/new"}
+          className={styles.menuItem}
+        >
+          {myBusiness ? "View your business profile" : "Create a business profile"}
+        </Link>
+        <Link href="/marketplace" className={styles.menuItem}>
+          Marketplace
+        </Link>
+        <Link href="/business" className={styles.menuItem}>
+          Discover businesses
+        </Link>
+        <Link href="/terms" className={styles.menuItem}>
+          Terms of Service
+        </Link>
+        <Link href="/privacy" className={styles.menuItem}>
+          Privacy Policy
+        </Link>
         <form action={signout}>
           <button className={`${styles.menuItem} ${styles.signOutBtn}`} type="submit">
             Sign out
           </button>
         </form>
+        <div className={styles.dangerZone}>
+          <DeleteAccountButton />
+        </div>
       </div>
     </main>
   );

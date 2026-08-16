@@ -1,0 +1,71 @@
+.wrapper {
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.cover {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius);
+  margin-bottom: 12px;
+}
+
+.name {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.category {
+  font-size: 13px;
+  color: var(--coral);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.description {
+  font-size: 14px;
+  margin-top: 12px;
+  line-height: 1.5;
+}
+
+.infoCard {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.infoRow {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.infoRow:last-child {
+  margin-bottom: 0;
+}
+
+.catalogSection {
+  margin-top: 20px;
+}
+
+.catalogTitle {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.catalogGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}

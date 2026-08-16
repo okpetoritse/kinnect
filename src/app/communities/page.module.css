@@ -70,3 +70,25 @@
   color: var(--text-secondary);
   font-size: 13px;
 }
+
+.loadMoreBtn {
+  width: 100%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.searchInput {
+  width: 100%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-pill);
+  padding: 12px 16px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}

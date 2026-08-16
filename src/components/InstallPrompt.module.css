@@ -1,0 +1,37 @@
+.banner {
+  position: fixed;
+  bottom: 84px;
+  left: 16px;
+  right: 16px;
+  max-width: 448px;
+  margin: 0 auto;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 40;
+  color: var(--coral);
+}
+
+.text {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.installBtn {
+  background: var(--coral);
+  color: white;
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.closeBtn {
+  color: var(--text-secondary);
+}

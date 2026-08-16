@@ -125,3 +125,15 @@
 .reelRingSeen {
   background: var(--border-subtle);
 }
+
+.loadMoreBtn {
+  width: 100%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}

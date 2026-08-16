@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 export async function updateAvatar(avatarUrl: string) {
   const supabase = await createClient();
@@ -87,4 +88,25 @@ export async function setUsername(username: string) {
 
   revalidatePath("/profile");
   return { success: true, username: clean };
+}
+
+export async function deleteAccount() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) redirect("/login");
+
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const admin = createAdminClient();
+
+  const { error } = await admin.auth.admin.deleteUser(user!.id);
+
+  if (error) {
+    redirect(`/profile?error=${encodeURIComponent("Could not delete account: " + error.message)}`);
+  }
+
+  await supabase.auth.signOut();
+  redirect("/login?deleted=true");
 }

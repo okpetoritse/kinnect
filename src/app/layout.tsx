@@ -17,6 +17,16 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Kinnect",
   description: "Friends, communities, and goal-driven groups for Kindred",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Kinnect",
+  },
+};
+
+export const viewport = {
+  themeColor: "#FF6F59",
 };
 
 export default function RootLayout({

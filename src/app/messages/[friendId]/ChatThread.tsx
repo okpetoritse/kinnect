@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  toggleMessageReaction,
+  getMessageReactions,
   sendMessage,
   sendImageMessage,
   sendStickerMessage,
   sendVoiceNoteMessage,
   markMessagesRead,
+  sendVoiceBurst,
+  sendPing,
+  notifyIncomingCall,
 } from "../actions";
 import {
   blockUser,
@@ -21,7 +26,9 @@ import Avatar from "@/components/Avatar";
 import BackButton from "@/components/BackButton";
 import GifPicker from "@/components/GifPicker";
 import { useDMCall } from "@/lib/webrtc/useDMCall";
+import { BookHeart } from "lucide-react";
 import VoiceNotePlayer from "./VoiceNotePlayer";
+import Link from "next/link";
 import styles from "./page.module.css";
 import {
   Phone,
@@ -38,13 +45,21 @@ import {
 
 type Message = {
   id: string;
+  is_burst?: boolean;
   sender_id: string;
   content: string | null;
   image_url?: string | null;
   sticker_id?: string | null;
   audio_url?: string | null;
   audio_duration?: number | null;
+  listing_id?: string | null;
+  listing_title?: string | null;
+  listing_price?: number | null;
+  listing_currency?: string | null;
+  listing_image_url?: string | null;
+  ping_label?: string | null;
   created_at?: string;
+  reactions?: { userId: string; emoji: string }[];
 };
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
@@ -98,9 +113,12 @@ export default function ChatThread({
     }))
   );
   const [text, setText] = useState("");
+  const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
   const [friendIsTyping, setFriendIsTyping] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
+  const burstChunksRef = useRef<Blob[]>([]);
+  const [recordingBurst, setRecordingBurst] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -112,6 +130,7 @@ export default function ChatThread({
   const [reportDetails, setReportDetails] = useState("");
   const [iBlockedThem, setIBlockedThem] = useState(false);
   const [theyBlockedMe, setTheyBlockedMe] = useState(false);
+  const [showPingMenu, setShowPingMenu] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -126,6 +145,29 @@ export default function ChatThread({
 
   const onlineIds = usePresence(currentUserId);
   const friendIsOnline = onlineIds.has(friendId);
+
+  const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🙏", "🎉"];
+
+  async function handleReact(msg: Message, emoji: string) {
+    setReactionPickerFor(null);
+    const current = msg.reactions || [];
+    const mine = current.find((r) => r.userId === currentUserId);
+    const updated = mine
+      ? current
+          .filter((r) => r.userId !== currentUserId)
+          .concat(mine.emoji === emoji ? [] : [{ userId: currentUserId, emoji }])
+      : [...current, { userId: currentUserId, emoji }];
+
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msg.id ? { ...m, reactions: updated } : m))
+    );
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "reaction_update",
+      payload: { messageId: msg.id, reactions: updated },
+    });
+    await toggleMessageReaction(msg.id, emoji);
+  }
 
   const {
     callState,
@@ -150,6 +192,25 @@ export default function ChatThread({
   }, [friendId]);
 
   useEffect(() => {
+    async function loadReactions() {
+      const ids = messages.map((m) => m.id).filter((id) => !id.startsWith("temp-"));
+      if (ids.length === 0) return;
+      const rows = await getMessageReactions(ids);
+      const byMsg = new Map<string, { userId: string; emoji: string }[]>();
+      rows.forEach((r) => {
+        const list = byMsg.get(r.message_id) || [];
+        list.push({ userId: r.user_id, emoji: r.emoji });
+        byMsg.set(r.message_id, list);
+      });
+      setMessages((prev) =>
+        prev.map((m) => ({ ...m, reactions: byMsg.get(m.id) || m.reactions }))
+      );
+    }
+    loadReactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     checkBlockStatus(friendId).then(({ iBlockedThem, theyBlockedMe }) => {
       setIBlockedThem(iBlockedThem);
       setTheyBlockedMe(theyBlockedMe);
@@ -162,6 +223,12 @@ export default function ChatThread({
 
     const channel = supabase
       .channel(roomName)
+      .on("broadcast", { event: "reaction_update" }, (payload) => {
+        const { messageId, reactions } = payload.payload as any;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, reactions } : m))
+        );
+      })
       .on("broadcast", { event: "new_message" }, (payload) => {
         const newMsg = payload.payload as Message;
         setMessages((prev) => {
@@ -233,6 +300,32 @@ export default function ChatThread({
     });
   }
 
+  const PINGS = [
+    "👀 I'm here",
+    "😂 I'm dying",
+    "❤️ Thinking of you",
+    "🫶 With you",
+    "💤 About to sleep",
+  ];
+
+  async function handlePing(label: string) {
+    setShowPingMenu(false);
+    const newMsg: Message = {
+      id: `temp-${Date.now()}`,
+      sender_id: currentUserId,
+      content: null,
+      ping_label: label,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, newMsg]);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "new_message",
+      payload: newMsg,
+    });
+    await sendPing(friendId, label);
+  }
+
   async function handleSend() {
     const content = text.trim();
     if (!content) return;
@@ -255,6 +348,52 @@ export default function ChatThread({
     });
 
     await sendMessage(friendId, content);
+  }
+
+  async function handleBurst() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      burstChunksRef.current = [];
+      setRecordingBurst(true);
+
+      recorder.ondataavailable = (e) => burstChunksRef.current.push(e.data);
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecordingBurst(false);
+        const blob = new Blob(burstChunksRef.current, { type: "audio/webm" });
+        const supabase = createClient();
+        const filePath = `${currentUserId}/burst-${Date.now()}.webm`;
+        const { error } = await supabase.storage.from("voice-notes").upload(filePath, blob);
+        if (error) return;
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("voice-notes").getPublicUrl(filePath);
+
+        const newMsg: Message = {
+          id: `temp-${Date.now()}`,
+          sender_id: currentUserId,
+          content: null,
+          audio_url: publicUrl,
+          audio_duration: 3,
+          is_burst: true,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, newMsg]);
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "new_message",
+          payload: newMsg,
+        });
+        await sendVoiceBurst(friendId, publicUrl, 3);
+      };
+
+      recorder.start();
+      setTimeout(() => recorder.stop(), 3000);
+    } catch (err) {
+      console.error(err);
+      setRecordingBurst(false);
+    }
   }
 
   async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -458,7 +597,16 @@ export default function ChatThread({
           </div>
         </div>
         <div className={styles.headerActions}>
-          <button className={styles.callBtn} onClick={startCall}>
+          <Link href={`/messages/${friendId}/moment`} className={styles.callBtn}>
+            <BookHeart size={17} />
+          </Link>
+          <button
+            className={styles.callBtn}
+            onClick={() => {
+              startCall();
+              notifyIncomingCall(friendId);
+            }}
+          >
             <Phone size={17} />
           </button>
           <button
@@ -517,6 +665,10 @@ export default function ChatThread({
                       style={{
                         marginTop: msg.isFirstInGroup ? "12px" : "2px",
                       }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setReactionPickerFor(msg.id);
+                      }}
                     >
                       {!isMine &&
                         (msg.isLastInGroup ? (
@@ -529,7 +681,40 @@ export default function ChatThread({
                           <div className={styles.avatarSpacer} />
                         ))}
 
-                      {msg.audio_url ? (
+                      {msg.ping_label ? (
+                        <div className={styles.pingPill}>{msg.ping_label}</div>
+                      ) : msg.listing_id ? (
+                        <Link
+                          href={`/marketplace/${msg.listing_id}`}
+                          className={styles.listingCard}
+                        >
+                          {msg.listing_image_url ? (
+                            <img
+                              src={msg.listing_image_url}
+                              className={styles.listingCardImage}
+                              alt=""
+                            />
+                          ) : (
+                            <div className={styles.listingCardImagePlaceholder}>
+                              📦
+                            </div>
+                          )}
+                          <div>
+                            <div className={styles.listingCardLabel}>
+                              Asking about
+                            </div>
+                            <div className={styles.listingCardTitle}>
+                              {msg.listing_title}
+                            </div>
+                            {msg.listing_price != null && (
+                              <div className={styles.listingCardPrice}>
+                                {msg.listing_currency || "₦"}
+                                {msg.listing_price.toLocaleString()}
+                              </div>
+                            )}
+                          </div>
+                        </Link>
+                      ) : msg.audio_url ? (
                         <VoiceNotePlayer
                           audioUrl={msg.audio_url}
                           duration={msg.audio_duration || 0}
@@ -556,6 +741,38 @@ export default function ChatThread({
                         </div>
                       )}
                     </div>
+
+                    {msg.reactions && msg.reactions.length > 0 && (
+                      <div
+                        className={
+                          isMine ? styles.timestampMine : styles.timestampTheirs
+                        }
+                      >
+                        {Object.entries(
+                          msg.reactions.reduce((acc: any, r) => {
+                            acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                            return acc;
+                          }, {})
+                        ).map(([emoji, count]) => (
+                          <span key={emoji} className={styles.reactionBadge}>
+                            {emoji} {count as number}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {reactionPickerFor === msg.id && (
+                      <div className={styles.reactionPicker}>
+                        {REACTION_EMOJIS.map((e) => (
+                          <button
+                            key={e}
+                            className={styles.reactionOption}
+                            onClick={() => handleReact(msg, e)}
+                          >
+                            {e}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                     {msg.isLastInGroup && (
                       <div
@@ -595,6 +812,16 @@ export default function ChatThread({
               >
                 <Camera size={20} />
                 <span>Camera</span>
+              </button>
+              <button
+                className={styles.attachOption}
+                onClick={() => {
+                  setShowAttachMenu(false);
+                  handleBurst();
+                }}
+              >
+                <span style={{ fontSize: 20 }}>💥</span>
+                <span>Voice Burst</span>
               </button>
               <button
                 className={styles.attachOption}
@@ -662,6 +889,25 @@ export default function ChatThread({
             >
               <Plus size={20} />
             </button>
+            <button
+              className={styles.imageBtn}
+              onClick={() => setShowPingMenu((p) => !p)}
+            >
+              👀
+            </button>
+            {showPingMenu && (
+              <div className={styles.pingMenu}>
+                {PINGS.map((p) => (
+                  <button
+                    key={p}
+                    className={styles.pingOption}
+                    onClick={() => handlePing(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {recording ? (
               <div className={styles.recordingIndicator}>
