@@ -44,6 +44,12 @@ export default function NewCommunityForm() {
         />
         This is a goal-driven micro-community (e.g. "Save ₦500,000 in 6 months")
       </label>
+      {isGoal && (
+        <p className={styles.goalExplainer}>
+          Everyone tracks their own progress toward a similar goal — like a
+          savings challenge or exam prep group — and can cheer each other on.
+        </p>
+      )}
 
       {isGoal && (
         <div className={styles.goalFields}>

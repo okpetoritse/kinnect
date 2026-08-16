@@ -196,3 +196,14 @@
   margin-bottom: 12px;
   display: inline-block;
 }
+
+.goalBadge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--coral);
+  background: var(--coral-tint);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  margin-bottom: 6px;
+}

@@ -75,21 +75,23 @@ export default function LogProgressForm({
           style={{ display: "none" }}
           onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
         />
-        <button
-          type="button"
-          className={styles.mediaAttachBtn}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Camera size={16} />
-        </button>
-        <input
-          className={styles.logInput}
-          type="number"
-          placeholder="New value"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          required
-        />
+        <div className={styles.logTopRow}>
+          <button
+            type="button"
+            className={styles.mediaAttachBtn}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Camera size={16} />
+          </button>
+          <input
+            className={styles.logInput}
+            type="number"
+            placeholder="New value"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            required
+          />
+        </div>
         <input
           className={styles.logInput}
           type="text"
@@ -98,7 +100,7 @@ export default function LogProgressForm({
           onChange={(e) => setNote(e.target.value)}
         />
         <button className={styles.logBtn} type="submit">
-          Log
+          Save progress
         </button>
       </form>
       {mediaFile && (

@@ -10,6 +10,7 @@ type Community = {
   name: string;
   description: string | null;
   cover_color: string | null;
+  is_goal?: boolean;
   created_at: string;
 };
 
@@ -70,7 +71,9 @@ export default function CommunitiesList({
                   className={styles.cover}
                   style={{ background: c.cover_color || "#FF6F59" }}
                 />
+                
                 <div>
+                  {c.is_goal && <div className={styles.goalBadge}>🎯 Goal Group</div>}
                   <div className={styles.name}>{c.name}</div>
                   <div className={styles.memberCount}>
                     {memberCounts[c.id] || 0} member

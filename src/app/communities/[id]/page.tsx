@@ -80,6 +80,7 @@ export default async function CommunityPage({
           className={styles.cover}
           style={{ background: community?.cover_color || "#FF6F59" }}
         />
+         {community?.is_goal && <div className={styles.goalBadge}>🎯 Goal Group</div>}
         <div className={styles.name}>{community?.name}</div>
         {community?.description && (
           <div className={styles.description}>{community.description}</div>

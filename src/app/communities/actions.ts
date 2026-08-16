@@ -968,7 +968,7 @@ export async function getCommunitiesList(cursor?: string, query?: string) {
 
   let request = supabase
     .from("communities")
-    .select("id, name, description, cover_color, created_at")
+    .select("id, name, description, cover_color, is_goal, created_at")
     .order("created_at", { ascending: false })
     .limit(PAGE_SIZE);
 

@@ -48,6 +48,9 @@ export default async function ProgressPage({
         <div className={styles.name}>{community.name} · Progress</div>
       </div>
 
+      <p className={styles.reminder}>
+        Everyone here tracks their own number toward the same kind of goal.
+      </p>
       <div className={styles.myProgressCard}>
         <div className={styles.myProgressLabel}>Your progress</div>
         <div className={styles.myProgressValue}>
