@@ -1,11 +1,24 @@
 import webpush from "web-push";
 import { createClient } from "@/lib/supabase/server";
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
-);
+let configured = false;
+
+function ensureConfigured() {
+  if (configured) return true;
+
+  const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  const privateKey = process.env.VAPID_PRIVATE_KEY;
+  const subject = process.env.VAPID_SUBJECT;
+
+  if (!publicKey || !privateKey || !subject) {
+    console.warn("VAPID keys not configured — push notifications are disabled.");
+    return false;
+  }
+
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  configured = true;
+  return true;
+}
 
 export async function sendPushToUser(
   userId: string,
@@ -13,6 +26,8 @@ export async function sendPushToUser(
   body: string,
   url: string = "/"
 ) {
+  if (!ensureConfigured()) return;
+
   const supabase = await createClient();
 
   const { data: subs } = await supabase
@@ -33,8 +48,6 @@ export async function sendPushToUser(
           JSON.stringify({ title, body, url })
         );
       } catch (err: any) {
-        // A 410/404 means that device unsubscribed or the endpoint expired —
-        // clean it up so we stop trying to push to a dead subscription
         if (err.statusCode === 410 || err.statusCode === 404) {
           await supabase.from("push_subscriptions").delete().eq("id", sub.id);
         } else {
