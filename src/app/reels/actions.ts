@@ -86,6 +86,15 @@ export async function getReelEntries(targetUserId: string) {
   }
 
   const entryIds = data.map((e) => e.id);
+
+  const { data: mediaRows } = entryIds.length
+    ? await supabase
+        .from("community_goal_progress_media")
+        .select("entry_id, media_url, media_type, position")
+        .in("entry_id", entryIds)
+        .order("position", { ascending: true })
+    : { data: [] };
+
   const { data: sparks } = entryIds.length
     ? await supabase
         .from("community_goal_progress_sparks")
@@ -93,12 +102,46 @@ export async function getReelEntries(targetUserId: string) {
         .in("entry_id", entryIds)
     : { data: [] };
 
-  return data.map((entry) => ({
-    ...entry,
-    sparkedUserIds: (sparks || [])
+  // Flatten: an entry with multiple media items becomes multiple slides,
+  // each carrying the same value/note/sparks as its parent entry. An entry
+  // with zero media (or only the legacy single media_url) becomes one slide.
+  const slides: any[] = [];
+
+  data.forEach((entry) => {
+    const entrySparkIds = (sparks || [])
       .filter((s) => s.entry_id === entry.id)
-      .map((s) => s.user_id),
-  }));
+      .map((s) => s.user_id);
+
+    const mediaForEntry = (mediaRows || []).filter((m) => m.entry_id === entry.id);
+
+    if (mediaForEntry.length > 0) {
+      mediaForEntry.forEach((m, i) => {
+        slides.push({
+          id: `${entry.id}-${i}`,
+          entryId: entry.id,
+          value: entry.value,
+          note: entry.note,
+          media_url: m.media_url,
+          media_type: m.media_type,
+          created_at: entry.created_at,
+          sparkedUserIds: entrySparkIds,
+        });
+      });
+    } else {
+      slides.push({
+        id: entry.id,
+        entryId: entry.id,
+        value: entry.value,
+        note: entry.note,
+        media_url: entry.media_url,
+        media_type: entry.media_type,
+        created_at: entry.created_at,
+        sparkedUserIds: entrySparkIds,
+      });
+    }
+  });
+
+  return slides;
 }
 
 export async function markReelViewed(entryIds: string[]) {

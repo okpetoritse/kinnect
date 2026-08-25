@@ -16,29 +16,36 @@ type Listing = {
   image_urls: string[];
   is_promoted?: boolean;
   promoted_until?: string | null;
-  created_at: string;
+  seller_country?: string | null;
 };
 
 export default function MarketplaceGrid({
   initial,
   initialCursor,
+  myCountry,
 }: {
   initial: Listing[];
   initialCursor: string | null;
+  myCountry: string;
 }) {
   const [query, setQuery] = useState("");
+  const [allRegions, setAllRegions] = useState(false);
   const [listings, setListings] = useState(initial);
   const [cursor, setCursor] = useState(initialCursor);
   const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     const timeout = setTimeout(async () => {
-      const { listings: data, nextCursor } = await getListings({ query });
+      const { listings: data, nextCursor } = await getListings({
+        query,
+        country: myCountry,
+        allRegions,
+      });
       setListings(data as any);
       setCursor(nextCursor);
     }, 300);
     return () => clearTimeout(timeout);
-  }, [query]);
+  }, [query, allRegions, myCountry]);
 
   async function handleLoadMore() {
     if (!cursor) return;
@@ -46,6 +53,8 @@ export default function MarketplaceGrid({
     const { listings: more, nextCursor } = await getListings({
       query,
       cursor,
+      country: myCountry,
+      allRegions,
     });
     setListings((prev) => [...prev, ...(more as any)]);
     setCursor(nextCursor);
@@ -60,6 +69,24 @@ export default function MarketplaceGrid({
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
+
+      <div className={styles.regionRow}>
+        <span>
+          {allRegions
+            ? "Showing all regions"
+            : myCountry
+            ? `Showing listings in ${myCountry}`
+            : "Set your country in Profile to see local listings"}
+        </span>
+        {myCountry && (
+          <button
+            className={styles.regionToggle}
+            onClick={() => setAllRegions((prev) => !prev)}
+          >
+            {allRegions ? "Show my region only" : "Show all regions"}
+          </button>
+        )}
+      </div>
 
       <div className={styles.grid}>
         {listings.length > 0 ? (

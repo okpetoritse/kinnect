@@ -9,6 +9,8 @@ export async function getListings(options?: {
   category?: string;
   businessId?: string;
   cursor?: string;
+  country?: string;
+  allRegions?: boolean;
 }) {
   const supabase = await createClient();
   const PAGE_SIZE = 20;
@@ -16,7 +18,7 @@ export async function getListings(options?: {
   let request = supabase
     .from("marketplace_listings")
     .select(
-      "id, title, price, currency, category, location, image_urls, status, business_id, is_promoted, promoted_until, created_at"
+      "id, title, price, currency, category, location, image_urls, status, business_id, is_promoted, promoted_until, seller_country, created_at"
     )
     .eq("status", "active")
     .order("created_at", { ascending: false })
@@ -33,6 +35,9 @@ export async function getListings(options?: {
   }
   if (options?.businessId) {
     request = request.eq("business_id", options.businessId);
+  }
+  if (!options?.allRegions && options?.country) {
+    request = request.eq("seller_country", options.country);
   }
 
   const { data, error } = await request;
@@ -93,10 +98,16 @@ export async function getMyBusinesses() {
 export async function createListing(formData: FormData) {
   const supabase = await createClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  data: { user },
+} = await supabase.auth.getUser();
 
-  if (!user) redirect("/login");
+if (!user) redirect("/login");
+
+const { data: sellerProfile } = await supabase
+  .from("profiles")
+  .select("country")
+  .eq("id", user.id)
+  .single();
 
   const title = (formData.get("title") as string)?.trim();
   const description = (formData.get("description") as string)?.trim();
@@ -114,15 +125,16 @@ export async function createListing(formData: FormData) {
   const { data: listing, error } = await supabase
     .from("marketplace_listings")
     .insert({
-      seller_id: user!.id,
-      business_id: businessId || null,
-      title,
-      description: description || null,
-      price: price ? Number(price) : null,
-      category: category || null,
-      location: location || null,
-      image_urls: imageUrls,
-    })
+  seller_id: user.id,
+  seller_country: sellerProfile?.country || null,
+  business_id: businessId || null,
+  title,
+  description: description || null,
+  price: price ? Number(price) : null,
+  category: category || null,
+  location: location || null,
+  image_urls: imageUrls,
+})
     .select()
     .single();
 

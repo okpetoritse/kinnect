@@ -1,11 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { signout } from "@/app/auth/actions";
+import { getMyBusinessProfile } from "@/app/business/actions";
+import Link from "next/link";
 import styles from "./page.module.css";
 import AvatarUpload from "./AvatarUpload";
 import UsernameEditor from "./UsernameEditor";
-import { getMyBusinessProfile } from "@/app/business/actions";
-import Link from "next/link";
+import CountryPicker from "./CountryPicker";
 import DeleteAccountButton from "./DeleteAccountButton";
 
 export default async function ProfilePage() {
@@ -18,12 +19,11 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, avatar_url, username")
+    .select("full_name, avatar_url, username, country")
     .eq("id", user.id)
     .single();
 
-    const myBusiness = await getMyBusinessProfile();
-
+  const myBusiness = await getMyBusinessProfile();
   const name = profile?.full_name || "Unnamed";
 
   return (
@@ -35,7 +35,9 @@ export default async function ProfilePage() {
       />
       <div className={styles.name}>{name}</div>
       <div className={styles.email}>{user.email}</div>
+
       <UsernameEditor initialUsername={profile?.username || null} />
+      <CountryPicker initialCountry={profile?.country || null} />
 
       <div className={styles.menu}>
         <Link
@@ -44,11 +46,11 @@ export default async function ProfilePage() {
         >
           {myBusiness ? "View your business profile" : "Create a business profile"}
         </Link>
-        <Link href="/marketplace" className={styles.menuItem}>
-          Marketplace
-        </Link>
         <Link href="/business" className={styles.menuItem}>
           Discover businesses
+        </Link>
+        <Link href="/marketplace" className={styles.menuItem}>
+          Marketplace
         </Link>
         <Link href="/terms" className={styles.menuItem}>
           Terms of Service
@@ -56,11 +58,13 @@ export default async function ProfilePage() {
         <Link href="/privacy" className={styles.menuItem}>
           Privacy Policy
         </Link>
+
         <form action={signout}>
           <button className={`${styles.menuItem} ${styles.signOutBtn}`} type="submit">
             Sign out
           </button>
         </form>
+
         <div className={styles.dangerZone}>
           <DeleteAccountButton />
         </div>

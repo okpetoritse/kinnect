@@ -248,3 +248,17 @@
   margin-bottom: 16px;
   line-height: 1.5;
 }
+
+.mediaPreviewRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.mediaPreviewThumb {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}

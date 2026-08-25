@@ -110,3 +110,20 @@ export async function deleteAccount() {
   await supabase.auth.signOut();
   redirect("/login?deleted=true");
 }
+
+export async function updateCountry(country: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ country })
+    .eq("id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/profile");
+  return { success: true };
+}

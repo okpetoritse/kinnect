@@ -807,3 +807,138 @@
   font-size: 11px;
   margin-top: 2px;
 }
+
+.videoStage {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 3/4;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 20px;
+  background: #000;
+}
+
+.remoteVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.localVideo {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 80px;
+  height: 106px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  box-shadow: var(--shadow-md);
+  border: 2px solid white;
+}
+
+.actionMenu {
+  position: absolute;
+  top: -46px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-pill);
+  padding: 6px 8px;
+  z-index: 15;
+}
+
+.actionDivider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  margin: 0 2px;
+}
+
+.replyIconBtn {
+  padding: 4px;
+  color: var(--text-secondary);
+}
+
+.replyPreview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  margin: 0 16px 8px;
+  border-left: 3px solid var(--coral);
+}
+
+.replyPreviewBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.replyPreviewName {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--coral);
+}
+
+.replyPreviewText {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.replyPreviewClose {
+  color: var(--text-secondary);
+}
+
+.quotedMessage {
+  background: rgba(0, 0, 0, 0.06);
+  border-left: 2px solid var(--coral);
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  font-size: 11px;
+}
+
+.quotedMessageName {
+  font-weight: 700;
+  color: var(--coral);
+}
+
+.quotedMessageText {
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.videoNoteBubble {
+  max-width: 60%;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.videoNoteBubble video {
+  width: 100%;
+  display: block;
+}
+
+.callLogPill {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+}

@@ -41,7 +41,7 @@ export async function getHomeData(userId: string) {
     friendIds.length > 0
       ? await supabase
           .from("profiles")
-          .select("id, full_name")
+          .select("id, full_name, avatar_url")
           .in("id", friendIds)
       : { data: [] };
 
@@ -49,6 +49,7 @@ export async function getHomeData(userId: string) {
     ...c,
     name:
       friendProfiles?.find((p) => p.id === c.friendId)?.full_name || "Unknown",
+    avatarUrl: friendProfiles?.find((p) => p.id === c.friendId)?.avatar_url || null,
   }));
 
   // Communities the user belongs to

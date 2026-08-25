@@ -14,7 +14,7 @@ export async function getMessages(friendId: string) {
 
   const { data, error } = await supabase
     .from("messages")
-    .select("id, sender_id, receiver_id, content, image_url, sticker_id, audio_url, audio_duration, listing_id, listing_title, listing_price, listing_currency, listing_image_url, ping_label, is_burst, created_at")
+        .select("id, sender_id, receiver_id, content, image_url, sticker_id, audio_url, audio_duration, listing_id, listing_title, listing_price, listing_currency, listing_image_url, ping_label, video_url, reply_to_id, reply_to_content, reply_to_sender_name, call_type, call_status, call_duration, created_at")
     .or(
       `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
     )
@@ -28,7 +28,11 @@ export async function getMessages(friendId: string) {
   return data;
 }
 
-export async function sendMessage(friendId: string, content: string) {
+export async function sendMessage(
+  friendId: string,
+  content: string,
+  replyTo?: { id: string; content: string; senderName: string }
+) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -47,6 +51,7 @@ export async function sendMessage(friendId: string, content: string) {
   if (blocked) {
     return { error: "You can't message this user" };
   }
+
 
   const { data: friendship } = await supabase
     .from("friend_requests")
@@ -74,6 +79,9 @@ export async function sendMessage(friendId: string, content: string) {
     sender_id: user.id,
     receiver_id: friendId,
     content: content.trim(),
+    reply_to_id: replyTo?.id || null,
+    reply_to_content: replyTo?.content || null,
+    reply_to_sender_name: replyTo?.senderName || null,
   });
 
   if (error) return { error: error.message };
@@ -134,6 +142,24 @@ export async function sendImageMessage(friendId: string, imageUrl: string) {
 
   if (error) return { error: error.message };
 
+  revalidatePath(`/messages/${friendId}`);
+  return { success: true };
+}
+
+  export async function sendVideoNote(friendId: string, videoUrl: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+
+  const { error } = await supabase.from("messages").insert({
+    sender_id: user.id,
+    receiver_id: friendId,
+    video_url: videoUrl,
+  });
+
+  if (error) return { error: error.message };
   revalidatePath(`/messages/${friendId}`);
   return { success: true };
 }
@@ -298,9 +324,43 @@ export async function getMessagesFriendsPaginated(cursor?: string) {
     return Array.isArray(raw) ? raw[0] : raw;
   });
 
+  const friendIds = friends.map((f: any) => f.id);
+  const { data: recentMessages } = friendIds.length
+    ? await supabase
+        .from("messages")
+        .select("sender_id, receiver_id, content, image_url, video_url, sticker_id, audio_url, ping_label, created_at")
+        .or(
+          friendIds
+            .map((fid: string) => `and(sender_id.eq.${user.id},receiver_id.eq.${fid}),and(sender_id.eq.${fid},receiver_id.eq.${user.id})`)
+            .join(",")
+        )
+        .order("created_at", { ascending: false })
+    : { data: [] };
+
+  const lastMessageByFriend: Record<string, { preview: string; time: string }> = {};
+  (recentMessages || []).forEach((m: any) => {
+    const otherId = m.sender_id === user.id ? m.receiver_id : m.sender_id;
+    if (lastMessageByFriend[otherId]) return;
+
+    let preview = m.content || "";
+    if (m.image_url) preview = "📷 Photo";
+    if (m.video_url) preview = "🎥 Video";
+    if (m.sticker_id) preview = "Sent a sticker";
+    if (m.audio_url) preview = "🎤 Voice message";
+    if (m.ping_label) preview = m.ping_label;
+
+    lastMessageByFriend[otherId] = { preview, time: m.created_at };
+  });
+
+  const friendsWithPreview = friends.map((f: any) => ({
+    ...f,
+    lastMessagePreview: lastMessageByFriend[f.id]?.preview || "",
+    lastMessageTime: lastMessageByFriend[f.id]?.time || null,
+  }));
+
   const nextCursor = data.length === PAGE_SIZE ? data[data.length - 1].created_at : null;
 
-  return { friends, nextCursor };
+  return { friends: friendsWithPreview, nextCursor };
 }
 
 export async function sendPing(friendId: string, pingLabel: string) {
@@ -390,4 +450,28 @@ export async function notifyIncomingCall(friendId: string) {
   if (!user) return;
   const name = user.user_metadata?.full_name || "Someone";
   await sendPushToUser(friendId, "Incoming call 📞", `${name} is calling you`, `/messages/${user.id}`);
+}
+export async function logCallMessage(
+  friendId: string,
+  callType: "audio" | "video",
+  callStatus: "completed" | "missed" | "declined",
+  duration: number
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+
+  const { error } = await supabase.from("messages").insert({
+    sender_id: user.id,
+    receiver_id: friendId,
+    call_type: callType,
+    call_status: callStatus,
+    call_duration: duration,
+  });
+
+  if (error) return { error: error.message };
+  revalidatePath(`/messages/${friendId}`);
+  return { success: true };
 }

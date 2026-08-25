@@ -9,6 +9,7 @@ import styles from "./ReelViewer.module.css";
 
 type Entry = {
   id: string;
+  entryId?: string;
   value: number;
   note: string | null;
   media_url: string | null;
@@ -40,7 +41,7 @@ export default function ReelViewer({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    markReelViewed(entries.map((e) => e.id));
+    markReelViewed(entries.map((e) => e.entryId || e.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -154,9 +155,9 @@ export default function ReelViewer({
 
       <div className={styles.footer}>
         <SparkButton
-          sparked={(sparks[entry.id] || []).includes(currentUserId)}
-          count={(sparks[entry.id] || []).length}
-          onTap={() => handleSpark(entry.id)}
+          sparked={(sparks[entry.entryId || entry.id] || []).includes(currentUserId)}
+          count={(sparks[entry.entryId || entry.id] || []).length}
+          onTap={() => handleSpark(entry.entryId || entry.id)}
         />
       </div>
     </div>

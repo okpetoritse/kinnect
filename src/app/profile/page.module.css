@@ -233,3 +233,110 @@
 .confirmDeleteBtn:disabled {
   opacity: 0.4;
 }
+
+
+.countrySection {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.countrySelectWrap {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.countrySelect {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  border: 0;
+  background: var(--background);
+  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-sm);
+  padding: 12px 36px 12px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.countrySelectOpen {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.countryPlaceholder {
+  color: var(--text-secondary);
+}
+
+.countrySelectArrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.countrySelectArrowOpen {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.countryMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  width: 100%;
+  max-height: 280px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  background: var(--background);
+  border-bottom-left-radius: var(--radius-sm);
+  border-bottom-right-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+  border-top: 1px solid var(--surface);
+  -webkit-overflow-scrolling: touch;
+}
+
+.countryOption {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: left;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.countryOption:hover {
+  background: var(--surface);
+}
+
+.countryOptionSelected {
+  background: var(--surface);
+  font-weight: 600;
+}

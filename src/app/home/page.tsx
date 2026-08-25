@@ -6,6 +6,7 @@ import styles from "./page.module.css";
 import { MessageCircle, Users, Calendar } from "lucide-react";
 import HomeCarousel from "@/components/HomeCarousel";
 import { getFriendsWithActiveReels } from "@/app/reels/actions";
+import Avatar from "@/components/Avatar";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -45,9 +46,8 @@ export default async function HomePage() {
               href={`/messages/${c.friendId}`}
               className={styles.conversationRow}
             >
-              <div className={styles.avatar}>
-                {c.name.charAt(0).toUpperCase()}
-              </div>
+                           <Avatar name={c.name} avatarUrl={c.avatarUrl} size={40} />
+                           
               <div className={styles.conversationBody}>
                 <div className={styles.conversationName}>{c.name}</div>
                 <div className={styles.conversationPreview}>

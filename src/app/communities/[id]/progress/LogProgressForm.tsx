@@ -19,32 +19,33 @@ export default function LogProgressForm({
   const [value, setValue] = useState("");
   const [note, setNote] = useState("");
   const [celebration, setCelebration] = useState<string | null>(null);
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  function handleFilesPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []).slice(0, 5 - mediaFiles.length);
+    setMediaFiles((prev) => [...prev, ...files].slice(0, 5));
+    e.target.value = "";
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!value) return;
 
-    let mediaUrl: string | undefined;
-    let mediaType: "image" | "video" | undefined;
+    setUploading(true);
+    const mediaItems: { url: string; type: "image" | "video" }[] = [];
 
-    if (mediaFile) {
-      const result = await uploadMedia("goal-progress", communityId, mediaFile);
-      if (result.url) {
-        mediaUrl = result.url;
-        mediaType = result.type;
+    for (const file of mediaFiles) {
+      const result = await uploadMedia("goal-progress", communityId, file);
+      if (result.url && result.type) {
+        mediaItems.push({ url: result.url, type: result.type });
       }
     }
+    setUploading(false);
 
-    const result = await logGoalProgress(
-      communityId,
-      Number(value),
-      note,
-      mediaUrl,
-      mediaType
-    );
+    const result = await logGoalProgress(communityId, Number(value), note, mediaItems);
 
     if (result.success && typeof result.newPercent === "number") {
       const justCrossed = milestoneThresholds.find(
@@ -61,7 +62,7 @@ export default function LogProgressForm({
 
     setValue("");
     setNote("");
-    setMediaFile(null);
+    setMediaFiles([]);
     router.refresh();
   }
 
@@ -72,14 +73,16 @@ export default function LogProgressForm({
           ref={fileInputRef}
           type="file"
           accept="image/*,video/*"
+          multiple
           style={{ display: "none" }}
-          onChange={(e) => setMediaFile(e.target.files?.[0] || null)}
+          onChange={handleFilesPicked}
         />
         <div className={styles.logTopRow}>
           <button
             type="button"
             className={styles.mediaAttachBtn}
             onClick={() => fileInputRef.current?.click()}
+            disabled={mediaFiles.length >= 5}
           >
             <Camera size={16} />
           </button>
@@ -95,17 +98,28 @@ export default function LogProgressForm({
         <input
           className={styles.logInput}
           type="text"
-          placeholder="Note (optional)"
+          placeholder="Note (optional) — tell the story"
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
-        <button className={styles.logBtn} type="submit">
-          Save progress
+        <button className={styles.logBtn} type="submit" disabled={uploading}>
+          {uploading ? "Uploading..." : "Save progress"}
         </button>
       </form>
-      {mediaFile && (
-        <div className={styles.mediaPreview}>📎 {mediaFile.name} attached</div>
+
+      {mediaFiles.length > 0 && (
+        <div className={styles.mediaPreviewRow}>
+          {mediaFiles.map((f, i) => (
+            <img
+              key={i}
+              src={URL.createObjectURL(f)}
+              className={styles.mediaPreviewThumb}
+              alt=""
+            />
+          ))}
+        </div>
       )}
+
       {celebration && <div className={styles.celebration}>{celebration}</div>}
     </>
   );

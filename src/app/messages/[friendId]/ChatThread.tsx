@@ -12,6 +12,8 @@ import {
   sendVoiceBurst,
   sendPing,
   notifyIncomingCall,
+  sendVideoNote,
+  logCallMessage,
 } from "../actions";
 import {
   blockUser,
@@ -26,12 +28,12 @@ import Avatar from "@/components/Avatar";
 import BackButton from "@/components/BackButton";
 import GifPicker from "@/components/GifPicker";
 import { useDMCall } from "@/lib/webrtc/useDMCall";
-import { BookHeart } from "lucide-react";
 import VoiceNotePlayer from "./VoiceNotePlayer";
 import Link from "next/link";
 import styles from "./page.module.css";
 import {
   Phone,
+  Video,
   MoreVertical,
   Plus,
   Camera,
@@ -41,6 +43,8 @@ import {
   MicOff,
   Send,
   PhoneOff,
+  CornerUpLeft,
+  BookHeart,
 } from "lucide-react";
 
 type Message = {
@@ -49,6 +53,7 @@ type Message = {
   sender_id: string;
   content: string | null;
   image_url?: string | null;
+  video_url?: string | null;
   sticker_id?: string | null;
   audio_url?: string | null;
   audio_duration?: number | null;
@@ -58,17 +63,32 @@ type Message = {
   listing_currency?: string | null;
   listing_image_url?: string | null;
   ping_label?: string | null;
+  reply_to_id?: string | null;
+  reply_to_content?: string | null;
+  reply_to_sender_name?: string | null;
+  call_type?: "audio" | "video" | null;
+  call_status?: "completed" | "missed" | "declined" | null;
+  call_duration?: number | null;
   created_at?: string;
   reactions?: { userId: string; emoji: string }[];
 };
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
+const MAX_VIDEO_NOTE_SECONDS = 30;
 const REPORT_REASONS = [
   { id: "spam", label: "Spam" },
   { id: "harassment", label: "Harassment or bullying" },
   { id: "inappropriate_content", label: "Inappropriate content" },
   { id: "fake_account", label: "Fake account" },
   { id: "other", label: "Other" },
+];
+const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🙏", "🎉"];
+const PINGS = [
+  "👀 I'm here",
+  "😂 I'm dying",
+  "❤️ Thinking of you",
+  "🫶 With you",
+  "💤 About to sleep",
 ];
 
 function formatTime(iso?: string) {
@@ -114,10 +134,14 @@ export default function ChatThread({
   );
   const [text, setText] = useState("");
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<{
+    id: string;
+    content: string;
+    senderName: string;
+  } | null>(null);
   const [friendIsTyping, setFriendIsTyping] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
-  const burstChunksRef = useRef<Blob[]>([]);
   const [recordingBurst, setRecordingBurst] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
@@ -135,56 +159,44 @@ export default function ChatThread({
   const bottomRef = useRef<HTMLDivElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoGalleryInputRef = useRef<HTMLInputElement>(null);
   const channelRef = useRef<any>(null);
-  const stopTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
+  const stopTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const burstChunksRef = useRef<Blob[]>([]);
   const recordingStartRef = useRef<number>(0);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onlineIds = usePresence(currentUserId);
   const friendIsOnline = onlineIds.has(friendId);
-
-  const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "🙏", "🎉"];
-
-  async function handleReact(msg: Message, emoji: string) {
-    setReactionPickerFor(null);
-    const current = msg.reactions || [];
-    const mine = current.find((r) => r.userId === currentUserId);
-    const updated = mine
-      ? current
-          .filter((r) => r.userId !== currentUserId)
-          .concat(mine.emoji === emoji ? [] : [{ userId: currentUserId, emoji }])
-      : [...current, { userId: currentUserId, emoji }];
-
-    setMessages((prev) =>
-      prev.map((m) => (m.id === msg.id ? { ...m, reactions: updated } : m))
-    );
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "reaction_update",
-      payload: { messageId: msg.id, reactions: updated },
-    });
-    await toggleMessageReaction(msg.id, emoji);
-  }
 
   const {
     callState,
     callerName,
     muted: callMuted,
     duration: callDuration,
+    isVideoCall,
     startCall,
     acceptCall,
     declineCall,
     endCall,
     toggleMute: toggleCallMute,
-  } = useDMCall(friendId, currentUserId, "You");
+    setLocalVideoEl,
+    setRemoteVideoEl,
+  } = useDMCall(friendId, currentUserId, "You", handleCallEnded);
 
   function formatCallDuration(seconds: number) {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+
+  function handleLongPressStart(msgId: string) {
+    longPressTimerRef.current = setTimeout(() => setReactionPickerFor(msgId), 450);
+  }
+  function handleLongPressEnd() {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
   }
 
   useEffect(() => {
@@ -268,12 +280,10 @@ export default function ChatThread({
       const next = messages[i + 1];
 
       const prevGap = prev?.created_at
-        ? new Date(msg.created_at!).getTime() -
-          new Date(prev.created_at).getTime()
+        ? new Date(msg.created_at!).getTime() - new Date(prev.created_at).getTime()
         : Infinity;
       const nextGap = next?.created_at
-        ? new Date(next.created_at).getTime() -
-          new Date(msg.created_at!).getTime()
+        ? new Date(next.created_at).getTime() - new Date(msg.created_at!).getTime()
         : Infinity;
 
       const sameSenderAsPrev = prev?.sender_id === msg.sender_id;
@@ -300,13 +310,24 @@ export default function ChatThread({
     });
   }
 
-  const PINGS = [
-    "👀 I'm here",
-    "😂 I'm dying",
-    "❤️ Thinking of you",
-    "🫶 With you",
-    "💤 About to sleep",
-  ];
+    async function handleCallEnded(
+    type: "audio" | "video",
+    status: "completed" | "missed" | "declined",
+    duration: number
+  ) {
+    const newMsg: Message = {
+      id: `temp-${Date.now()}`,
+      sender_id: currentUserId,
+      content: null,
+      call_type: type,
+      call_status: status,
+      call_duration: duration,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, newMsg]);
+    channelRef.current?.send({ type: "broadcast", event: "new_message", payload: newMsg });
+    await logCallMessage(friendId, type, status, duration);
+  }
 
   async function handlePing(label: string) {
     setShowPingMenu(false);
@@ -326,6 +347,46 @@ export default function ChatThread({
     await sendPing(friendId, label);
   }
 
+  
+
+  async function handleReact(msg: Message, emoji: string) {
+    setReactionPickerFor(null);
+    const current = msg.reactions || [];
+    const mine = current.find((r) => r.userId === currentUserId);
+    const updated = mine
+      ? current
+          .filter((r) => r.userId !== currentUserId)
+          .concat(mine.emoji === emoji ? [] : [{ userId: currentUserId, emoji }])
+      : [...current, { userId: currentUserId, emoji }];
+
+    setMessages((prev) =>
+      prev.map((m) => (m.id === msg.id ? { ...m, reactions: updated } : m))
+    );
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "reaction_update",
+      payload: { messageId: msg.id, reactions: updated },
+    });
+    await toggleMessageReaction(msg.id, emoji);
+  }
+
+  function handleStartReply(msg: Message) {
+    setReactionPickerFor(null);
+    setReplyTarget({
+      id: msg.id,
+      content:
+        msg.content ||
+        (msg.image_url
+          ? "📷 Photo"
+          : msg.video_url
+          ? "🎥 Video"
+          : msg.audio_url
+          ? "🎤 Voice message"
+          : "Message"),
+      senderName: msg.sender_id === currentUserId ? "You" : friendName,
+    });
+  }
+
   async function handleSend() {
     const content = text.trim();
     if (!content) return;
@@ -336,6 +397,8 @@ export default function ChatThread({
       id: `temp-${Date.now()}`,
       sender_id: currentUserId,
       content,
+      reply_to_content: replyTarget?.content || null,
+      reply_to_sender_name: replyTarget?.senderName || null,
       created_at: new Date().toISOString(),
     };
 
@@ -347,53 +410,14 @@ export default function ChatThread({
       payload: newMsg,
     });
 
-    await sendMessage(friendId, content);
-  }
-
-  async function handleBurst() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
-      burstChunksRef.current = [];
-      setRecordingBurst(true);
-
-      recorder.ondataavailable = (e) => burstChunksRef.current.push(e.data);
-      recorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setRecordingBurst(false);
-        const blob = new Blob(burstChunksRef.current, { type: "audio/webm" });
-        const supabase = createClient();
-        const filePath = `${currentUserId}/burst-${Date.now()}.webm`;
-        const { error } = await supabase.storage.from("voice-notes").upload(filePath, blob);
-        if (error) return;
-        const {
-          data: { publicUrl },
-        } = supabase.storage.from("voice-notes").getPublicUrl(filePath);
-
-        const newMsg: Message = {
-          id: `temp-${Date.now()}`,
-          sender_id: currentUserId,
-          content: null,
-          audio_url: publicUrl,
-          audio_duration: 3,
-          is_burst: true,
-          created_at: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, newMsg]);
-        channelRef.current?.send({
-          type: "broadcast",
-          event: "new_message",
-          payload: newMsg,
-        });
-        await sendVoiceBurst(friendId, publicUrl, 3);
-      };
-
-      recorder.start();
-      setTimeout(() => recorder.stop(), 3000);
-    } catch (err) {
-      console.error(err);
-      setRecordingBurst(false);
-    }
+    await sendMessage(
+      friendId,
+      content,
+      replyTarget
+        ? { id: replyTarget.id, content: replyTarget.content, senderName: replyTarget.senderName }
+        : undefined
+    );
+    setReplyTarget(null);
   }
 
   async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -441,6 +465,68 @@ export default function ChatThread({
     await sendImageMessage(friendId, publicUrl);
   }
 
+  // Picking an existing short video from the gallery — not a live recorder.
+  // We check its length client-side before uploading; anything over the cap
+  // is rejected with a clear message instead of silently trimming it.
+  async function handleVideoGallerySelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setShowAttachMenu(false);
+
+    const objectUrl = URL.createObjectURL(file);
+    const probe = document.createElement("video");
+    probe.preload = "metadata";
+
+    const duration: number = await new Promise((resolve) => {
+      probe.onloadedmetadata = () => resolve(probe.duration);
+      probe.onerror = () => resolve(0);
+      probe.src = objectUrl;
+    });
+    URL.revokeObjectURL(objectUrl);
+
+    if (duration > MAX_VIDEO_NOTE_SECONDS) {
+      alert(`Please pick a video under ${MAX_VIDEO_NOTE_SECONDS} seconds.`);
+      return;
+    }
+
+    setUploading(true);
+    const supabase = createClient();
+    const filePath = `${currentUserId}/vidnote-${Date.now()}-${file.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("chat-images")
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error(uploadError);
+      setUploading(false);
+      return;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("chat-images").getPublicUrl(filePath);
+
+    const newMsg: Message = {
+      id: `temp-${Date.now()}`,
+      sender_id: currentUserId,
+      content: null,
+      video_url: publicUrl,
+      created_at: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, newMsg]);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "new_message",
+      payload: newMsg,
+    });
+
+    setUploading(false);
+    await sendVideoNote(friendId, publicUrl);
+  }
+
   async function handleGifSelect(gifUrl: string) {
     setShowGifPicker(false);
 
@@ -483,6 +569,52 @@ export default function ChatThread({
     });
 
     await sendStickerMessage(friendId, stickerId);
+  }
+
+  async function handleBurst() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      burstChunksRef.current = [];
+      setRecordingBurst(true);
+
+      recorder.ondataavailable = (e) => burstChunksRef.current.push(e.data);
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecordingBurst(false);
+        const blob = new Blob(burstChunksRef.current, { type: "audio/webm" });
+        const supabase = createClient();
+        const filePath = `${currentUserId}/burst-${Date.now()}.webm`;
+        const { error } = await supabase.storage.from("voice-notes").upload(filePath, blob);
+        if (error) return;
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("voice-notes").getPublicUrl(filePath);
+
+        const newMsg: Message = {
+          id: `temp-${Date.now()}`,
+          sender_id: currentUserId,
+          content: null,
+          audio_url: publicUrl,
+          audio_duration: 3,
+          is_burst: true,
+          created_at: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, newMsg]);
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "new_message",
+          payload: newMsg,
+        });
+        await sendVoiceBurst(friendId, publicUrl, 3);
+      };
+
+      recorder.start();
+      setTimeout(() => recorder.stop(), 3000);
+    } catch (err) {
+      console.error(err);
+      setRecordingBurst(false);
+    }
   }
 
   async function handleStartRecording() {
@@ -567,12 +699,7 @@ export default function ChatThread({
   }
 
   async function handleSubmitReport() {
-    await reportUser(
-      friendId,
-      reportReason,
-      reportDetails,
-      reportModal?.messageId
-    );
+    await reportUser(friendId, reportReason, reportDetails, reportModal?.messageId);
     setReportModal(null);
     setReportDetails("");
     setReportReason("spam");
@@ -603,7 +730,16 @@ export default function ChatThread({
           <button
             className={styles.callBtn}
             onClick={() => {
-              startCall();
+              startCall(true);
+              notifyIncomingCall(friendId);
+            }}
+          >
+            <Video size={17} />
+          </button>
+          <button
+            className={styles.callBtn}
+            onClick={() => {
+              startCall(false);
               notifyIncomingCall(friendId);
             }}
           >
@@ -662,26 +798,45 @@ export default function ChatThread({
                       className={`${styles.messageRow} ${
                         isMine ? styles.messageRowMine : ""
                       }`}
-                      style={{
-                        marginTop: msg.isFirstInGroup ? "12px" : "2px",
-                      }}
+                      style={{ marginTop: msg.isFirstInGroup ? "12px" : "2px" }}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         setReactionPickerFor(msg.id);
                       }}
+                      onTouchStart={() => handleLongPressStart(msg.id)}
+                      onTouchEnd={handleLongPressEnd}
                     >
                       {!isMine &&
                         (msg.isLastInGroup ? (
-                          <Avatar
-                            name={friendName}
-                            avatarUrl={friendAvatarUrl}
-                            size={26}
-                          />
+                          <Avatar name={friendName} avatarUrl={friendAvatarUrl} size={26} />
                         ) : (
                           <div className={styles.avatarSpacer} />
                         ))}
 
-                      {msg.ping_label ? (
+                        
+
+                      {msg.call_status ? (
+  <div className={styles.callLogPill}>
+    {msg.call_type === "video" ? "🎥" : "📞"}{" "}
+    {msg.call_status === "completed"
+      ? `${msg.call_type === "video" ? "Video" : "Voice"} call · ${Math.floor(
+          (msg.call_duration || 0) / 60
+        )}:${((msg.call_duration || 0) % 60)
+          .toString()
+          .padStart(2, "0")}`
+      : msg.call_status === "declined"
+      ? isMine
+        ? "Call declined"
+        : "You declined"
+      : isMine
+      ? "No answer"
+      : "Missed call"}
+  </div>
+) : msg.ping_label ? (
+  <div className={styles.pingPill}>{msg.ping_label}</div>
+) : msg.listing_id ? (
+  // YOUR EXISTING LISTING CODE
+                        
                         <div className={styles.pingPill}>{msg.ping_label}</div>
                       ) : msg.listing_id ? (
                         <Link
@@ -695,17 +850,11 @@ export default function ChatThread({
                               alt=""
                             />
                           ) : (
-                            <div className={styles.listingCardImagePlaceholder}>
-                              📦
-                            </div>
+                            <div className={styles.listingCardImagePlaceholder}>📦</div>
                           )}
                           <div>
-                            <div className={styles.listingCardLabel}>
-                              Asking about
-                            </div>
-                            <div className={styles.listingCardTitle}>
-                              {msg.listing_title}
-                            </div>
+                            <div className={styles.listingCardLabel}>Asking about</div>
+                            <div className={styles.listingCardTitle}>{msg.listing_title}</div>
                             {msg.listing_price != null && (
                               <div className={styles.listingCardPrice}>
                                 {msg.listing_currency || "₦"}
@@ -714,6 +863,10 @@ export default function ChatThread({
                             )}
                           </div>
                         </Link>
+                      ) : msg.video_url ? (
+                        <div className={styles.videoNoteBubble}>
+                          <video src={msg.video_url} controls />
+                        </div>
                       ) : msg.audio_url ? (
                         <VoiceNotePlayer
                           audioUrl={msg.audio_url}
@@ -730,13 +883,21 @@ export default function ChatThread({
                         </div>
                       ) : (
                         <div
-                          className={`${styles.bubble} ${
-                            isMine ? styles.bubbleMine : ""
-                          }`}
+                          className={`${styles.bubble} ${isMine ? styles.bubbleMine : ""}`}
                           onDoubleClick={() =>
                             !isMine && setReportModal({ messageId: msg.id })
                           }
                         >
+                          {msg.reply_to_content && (
+                            <div className={styles.quotedMessage}>
+                              <span className={styles.quotedMessageName}>
+                                {msg.reply_to_sender_name}
+                              </span>
+                              <span className={styles.quotedMessageText}>
+                                {msg.reply_to_content}
+                              </span>
+                            </div>
+                          )}
                           {msg.content}
                         </div>
                       )}
@@ -744,9 +905,7 @@ export default function ChatThread({
 
                     {msg.reactions && msg.reactions.length > 0 && (
                       <div
-                        className={
-                          isMine ? styles.timestampMine : styles.timestampTheirs
-                        }
+                        className={isMine ? styles.timestampMine : styles.timestampTheirs}
                       >
                         {Object.entries(
                           msg.reactions.reduce((acc: any, r) => {
@@ -760,8 +919,9 @@ export default function ChatThread({
                         ))}
                       </div>
                     )}
+
                     {reactionPickerFor === msg.id && (
-                      <div className={styles.reactionPicker}>
+                      <div className={styles.actionMenu}>
                         {REACTION_EMOJIS.map((e) => (
                           <button
                             key={e}
@@ -771,15 +931,20 @@ export default function ChatThread({
                             {e}
                           </button>
                         ))}
+                        <div className={styles.actionDivider} />
+                        <button
+                          className={styles.replyIconBtn}
+                          onClick={() => handleStartReply(msg)}
+                        >
+                          <CornerUpLeft size={16} />
+                        </button>
                       </div>
                     )}
 
                     {msg.isLastInGroup && (
                       <div
                         className={`${styles.timestamp} ${
-                          isMine
-                            ? styles.timestampMine
-                            : styles.timestampTheirs
+                          isMine ? styles.timestampMine : styles.timestampTheirs
                         }`}
                       >
                         {formatTime(msg.created_at)}
@@ -797,9 +962,7 @@ export default function ChatThread({
               </div>
             )}
             {friendIsTyping && (
-              <p className={styles.typingIndicator}>
-                {friendName} is typing...
-              </p>
+              <p className={styles.typingIndicator}>{friendName} is typing...</p>
             )}
             <div ref={bottomRef} />
           </div>
@@ -829,6 +992,13 @@ export default function ChatThread({
               >
                 <ImageIcon size={20} />
                 <span>Gallery</span>
+              </button>
+              <button
+                className={styles.attachOption}
+                onClick={() => videoGalleryInputRef.current?.click()}
+              >
+                <Video size={20} />
+                <span>Short Video</span>
               </button>
               <button
                 className={styles.attachOption}
@@ -867,6 +1037,23 @@ export default function ChatThread({
             </div>
           )}
 
+          {replyTarget && (
+            <div className={styles.replyPreview}>
+              <div className={styles.replyPreviewBody}>
+                <div className={styles.replyPreviewName}>
+                  Replying to {replyTarget.senderName}
+                </div>
+                <div className={styles.replyPreviewText}>{replyTarget.content}</div>
+              </div>
+              <button
+                className={styles.replyPreviewClose}
+                onClick={() => setReplyTarget(null)}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           <div className={styles.composer}>
             <input
               ref={cameraInputRef}
@@ -882,6 +1069,13 @@ export default function ChatThread({
               accept="image/*"
               className={styles.imageInput}
               onChange={handleImageSelect}
+            />
+            <input
+              ref={videoGalleryInputRef}
+              type="file"
+              accept="video/*"
+              className={styles.imageInput}
+              onChange={handleVideoGallerySelect}
             />
             <button
               className={styles.imageBtn}
@@ -930,14 +1124,17 @@ export default function ChatThread({
               </button>
             ) : (
               <button
-                className={`${styles.micBtn} ${
-                  recording ? styles.micBtnRecording : ""
-                }`}
-                onMouseDown={handleStartRecording}
-                onMouseUp={handleStopRecording}
-                onMouseLeave={() => recording && handleStopRecording()}
-                onTouchStart={handleStartRecording}
-                onTouchEnd={handleStopRecording}
+                className={`${styles.micBtn} ${recording ? styles.micBtnRecording : ""}`}
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  handleStartRecording();
+                }}
+                onPointerUp={(e) => {
+                  e.preventDefault();
+                  handleStopRecording();
+                }}
+                onPointerLeave={() => recording && handleStopRecording()}
+                onPointerCancel={() => recording && handleStopRecording()}
               >
                 {recording ? <MicOff size={18} /> : <Mic size={18} />}
               </button>
@@ -947,10 +1144,7 @@ export default function ChatThread({
       )}
 
       {showGifPicker && (
-        <GifPicker
-          onSelect={handleGifSelect}
-          onClose={() => setShowGifPicker(false)}
-        />
+        <GifPicker onSelect={handleGifSelect} onClose={() => setShowGifPicker(false)} />
       )}
 
       {reportModal && (
@@ -980,10 +1174,7 @@ export default function ChatThread({
             />
 
             <div className={styles.modalActions}>
-              <button
-                className={styles.modalCancel}
-                onClick={() => setReportModal(null)}
-              >
+              <button className={styles.modalCancel} onClick={() => setReportModal(null)}>
                 Cancel
               </button>
               <button className={styles.modalSubmit} onClick={handleSubmitReport}>
@@ -996,9 +1187,16 @@ export default function ChatThread({
 
       {callState !== "idle" && (
         <div className={styles.callOverlay}>
-          <div className={styles.callAvatarLarge}>
-            <Avatar name={friendName} avatarUrl={friendAvatarUrl} size={96} />
-          </div>
+          {isVideoCall && callState === "connected" ? (
+            <div className={styles.videoStage}>
+              <video ref={setRemoteVideoEl} className={styles.remoteVideo} autoPlay playsInline />
+              <video ref={setLocalVideoEl} className={styles.localVideo} autoPlay playsInline muted />
+            </div>
+          ) : (
+            <div className={styles.callAvatarLarge}>
+              <Avatar name={friendName} avatarUrl={friendAvatarUrl} size={96} />
+            </div>
+          )}
           <div className={styles.callName}>
             {callState === "ringing" ? callerName : friendName}
           </div>

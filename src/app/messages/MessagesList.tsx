@@ -12,6 +12,8 @@ type Friend = {
   full_name: string | null;
   username: string | null;
   avatar_url: string | null;
+  lastMessagePreview?: string;
+  lastMessageTime?: string | null;
 };
 
 export default function MessagesList({
@@ -89,12 +91,13 @@ export default function MessagesList({
               avatarUrl={friend.avatar_url}
               size={40}
             />
-            <div>
+                      <div>
               <div className={styles.name}>{friend.full_name || "Unnamed"}</div>
-              <div className={styles.email}>
-                {friend.username ? `@${friend.username}` : "No username set"}
+              <div className={styles.lastMessage}>
+                {friend.lastMessagePreview || (friend.username ? `@${friend.username}` : "No messages yet")}
               </div>
             </div>
+
             {unread > 0 && (
               <div className={styles.unreadBadge}>{unread}</div>
             )}

@@ -756,8 +756,7 @@ export async function logGoalProgress(
   communityId: string,
   value: number,
   note: string,
-  mediaUrl?: string,
-  mediaType?: "image" | "video"
+  mediaItems?: { url: string; type: "image" | "video" }[]
 ) {
   const supabase = await createClient();
   const {
@@ -766,16 +765,29 @@ export async function logGoalProgress(
 
   if (!user) return { error: "Not logged in" };
 
-  const { error } = await supabase.from("community_goal_progress").insert({
-    community_id: communityId,
-    user_id: user.id,
-    value,
-    note: note || null,
-    media_url: mediaUrl || null,
-    media_type: mediaType || null,
-  });
+  const { data: entry, error } = await supabase
+    .from("community_goal_progress")
+    .insert({
+      community_id: communityId,
+      user_id: user.id,
+      value,
+      note: note || null,
+    })
+    .select("id")
+    .single();
 
-  if (error) return { error: error.message };
+  if (error || !entry) return { error: error?.message || "Could not log progress" };
+
+  if (mediaItems && mediaItems.length > 0) {
+    await supabase.from("community_goal_progress_media").insert(
+      mediaItems.slice(0, 5).map((m, i) => ({
+        entry_id: entry.id,
+        media_url: m.url,
+        media_type: m.type,
+        position: i,
+      }))
+    );
+  }
 
   const { data: community } = await supabase
     .from("communities")
