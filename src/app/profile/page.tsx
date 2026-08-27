@@ -8,6 +8,7 @@ import AvatarUpload from "./AvatarUpload";
 import UsernameEditor from "./UsernameEditor";
 import CountryPicker from "./CountryPicker";
 import DeleteAccountButton from "./DeleteAccountButton";
+import NotificationToggle from "./NotificationToggle";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -40,6 +41,7 @@ export default async function ProfilePage() {
       <CountryPicker initialCountry={profile?.country || null} />
 
       <div className={styles.menu}>
+        <NotificationToggle />
         <Link
           href={myBusiness ? `/business/${myBusiness.id}` : "/business/new"}
           className={styles.menuItem}

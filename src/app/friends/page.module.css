@@ -114,12 +114,13 @@
 
 .reelRing {
   border-radius: 50%;
-  padding: 2px;
+  padding: 3px;
   background: transparent;
 }
 
 .reelRingActive {
   background: linear-gradient(135deg, var(--coral), var(--pink));
+  box-shadow: 0 0 0 1px var(--surface), 0 0 8px rgba(255, 111, 89, 0.4);
 }
 
 .reelRingSeen {

@@ -6,6 +6,7 @@ import BackButton from "@/components/BackButton";
 import styles from "./page.module.css";
 import LogProgressForm from "./LogProgressForm";
 import { Trophy } from "lucide-react";
+import LeaderboardRow from "./LeaderboardRow";
 
 export default async function ProgressPage({
   params,
@@ -92,29 +93,7 @@ export default async function ProgressPage({
       <div className={styles.sectionTitle}>Leaderboard</div>
       <div className={styles.list}>
         {leaderboard.map((entry, i) => (
-          <div key={entry.userId} className={styles.row}>
-            <div className={styles.rankNum}>#{i + 1}</div>
-            <Avatar name={entry.name} avatarUrl={entry.avatarUrl} size={36} />
-            <div className={styles.body}>
-              <div className={styles.memberName}>
-                {entry.userId === user.id ? "You" : entry.name}
-              </div>
-              <div className={styles.memberBarTrack}>
-                <div
-                  className={styles.memberBarFill}
-                  style={{ width: `${entry.percent}%` }}
-                />
-              </div>
-              <div className={styles.memberBadges}>
-                {entry.milestonesReached.map((t: number) => (
-                  <span key={t} className={styles.memberBadgeSmall}>
-                    🏅
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className={styles.memberPercent}>{entry.percent}%</div>
-          </div>
+                    <LeaderboardRow key={entry.userId} entry={entry} rank={i + 1} isMe={entry.userId === user.id} />
         ))}
       </div>
     </main>

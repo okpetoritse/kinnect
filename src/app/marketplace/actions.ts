@@ -175,54 +175,89 @@ export async function deleteListing(id: string) {
 }
 
 export async function startListingConversation(listingId: string) {
+  console.log("[LISTING] 1. Starting, listingId =", listingId);
+
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
+  console.log("[LISTING] 2. Current user =", user?.id);
+
   if (!user) redirect("/login");
 
-  const { data: listing } = await supabase
+  const { data: listing, error: listingError } = await supabase
     .from("marketplace_listings")
     .select("id, title, price, currency, image_urls, seller_id")
     .eq("id", listingId)
     .single();
 
-  if (!listing) redirect("/marketplace");
-  if (listing.seller_id === user!.id) redirect(`/marketplace/${listingId}`);
+  console.log("[LISTING] 3. Listing lookup:", { listing, listingError });
+
+  if (listingError || !listing) {
+    console.log("[LISTING] 4. FAILED — listing not found, redirecting to /marketplace");
+    redirect("/marketplace");
+  }
+
+  if (listing!.seller_id === user!.id) {
+    console.log("[LISTING] 4. You are the seller — redirecting to listing page");
+    redirect(`/marketplace/${listingId}`);
+  }
 
   const { data: blocked } = await supabase
     .from("blocked_users")
     .select("id")
     .or(
-      `and(blocker_id.eq.${user!.id},blocked_id.eq.${listing.seller_id}),and(blocker_id.eq.${listing.seller_id},blocked_id.eq.${user!.id})`
+      `and(blocker_id.eq.${user!.id},blocked_id.eq.${listing!.seller_id}),and(blocker_id.eq.${listing!.seller_id},blocked_id.eq.${user!.id})`
     )
     .maybeSingle();
 
+  console.log("[LISTING] 5. Block check:", blocked);
+
   if (blocked) redirect(`/marketplace/${listingId}?error=Cannot message this seller`);
 
-  // Reuse an existing listing-card message for this buyer+listing pair if one
-  // already exists, instead of spamming a fresh card every time they tap the button
   const { data: existing } = await supabase
     .from("messages")
     .select("id")
     .eq("sender_id", user!.id)
-    .eq("receiver_id", listing.seller_id)
+    .eq("receiver_id", listing!.seller_id)
     .eq("listing_id", listingId)
     .maybeSingle();
 
+  console.log("[LISTING] 6. Existing conversation about this listing:", existing);
+
   if (!existing) {
-    await supabase.from("messages").insert({
+    const insertPayload = {
       sender_id: user!.id,
-      receiver_id: listing.seller_id,
+      receiver_id: listing!.seller_id,
       content: null,
-      listing_id: listing.id,
-      listing_title: listing.title,
-      listing_price: listing.price,
-      listing_currency: listing.currency,
-      listing_image_url: listing.image_urls?.[0] || null,
-    });
+      listing_id: listing!.id,
+      listing_title: listing!.title,
+      listing_price: listing!.price,
+      listing_currency: listing!.currency,
+      listing_image_url: listing!.image_urls?.[0] || null,
+    };
+
+    console.log("[LISTING] 7. Inserting new listing-card message:", insertPayload);
+
+    const { data: insertedRow, error: insertError } = await supabase
+      .from("messages")
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    console.log("[LISTING] 8. Insert result:", { insertedRow, insertError });
+
+    if (insertError) {
+      console.log("[LISTING] 9. FAILED — insert error, redirecting with error message");
+      redirect(
+        `/marketplace/${listingId}?error=${encodeURIComponent("Could not start conversation: " + insertError.message)}`
+      );
+    }
+  } else {
+    console.log("[LISTING] 7. Skipping insert — conversation already exists");
   }
 
-  redirect(`/messages/${listing.seller_id}`);
+  console.log("[LISTING] 10. SUCCESS — redirecting to /messages/" + listing!.seller_id);
+  redirect(`/messages/${listing!.seller_id}`);
 }

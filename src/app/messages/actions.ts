@@ -14,7 +14,7 @@ export async function getMessages(friendId: string) {
 
   const { data, error } = await supabase
     .from("messages")
-        .select("id, sender_id, receiver_id, content, image_url, sticker_id, audio_url, audio_duration, listing_id, listing_title, listing_price, listing_currency, listing_image_url, ping_label, video_url, reply_to_id, reply_to_content, reply_to_sender_name, call_type, call_status, call_duration, created_at")
+            .select("id, sender_id, receiver_id, content, image_url, video_url, sticker_id, audio_url, audio_duration, is_burst, listing_id, listing_title, listing_price, listing_currency, listing_image_url, ping_label, reply_to_id, reply_to_content, reply_to_sender_name, call_type, call_status, call_duration, created_at")
     .or(
       `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
     )
@@ -25,6 +25,13 @@ export async function getMessages(friendId: string) {
     return [];
   }
 
+
+    if (error) {
+    console.error("getMessages failed:", error);
+    return [];
+  }
+
+ 
   return data;
 }
 

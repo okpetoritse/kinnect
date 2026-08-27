@@ -113,6 +113,12 @@ function formatDateDivider(iso?: string) {
   });
 }
 
+function formatCallDuration(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function ChatThread({
   friendId,
   friendName,
@@ -171,6 +177,25 @@ export default function ChatThread({
   const onlineIds = usePresence(currentUserId);
   const friendIsOnline = onlineIds.has(friendId);
 
+  async function handleCallEnded(
+    type: "audio" | "video",
+    status: "completed" | "missed" | "declined",
+    duration: number
+  ) {
+    const newMsg: Message = {
+      id: `temp-${Date.now()}`,
+      sender_id: currentUserId,
+      content: null,
+      call_type: type,
+      call_status: status,
+      call_duration: duration,
+      created_at: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, newMsg]);
+    channelRef.current?.send({ type: "broadcast", event: "new_message", payload: newMsg });
+    await logCallMessage(friendId, type, status, duration);
+  }
+
   const {
     callState,
     callerName,
@@ -185,12 +210,6 @@ export default function ChatThread({
     setLocalVideoEl,
     setRemoteVideoEl,
   } = useDMCall(friendId, currentUserId, "You", handleCallEnded);
-
-  function formatCallDuration(seconds: number) {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  }
 
   function handleLongPressStart(msgId: string) {
     longPressTimerRef.current = setTimeout(() => setReactionPickerFor(msgId), 450);
@@ -248,6 +267,9 @@ export default function ChatThread({
           return [...prev, newMsg];
         });
         setFriendIsTyping(false);
+        if (newMsg.sender_id !== currentUserId) {
+          markMessagesRead(friendId);
+        }
       })
       .on("broadcast", { event: "typing" }, (payload) => {
         if (payload.payload.userId !== currentUserId) {
@@ -265,8 +287,7 @@ export default function ChatThread({
 
     return () => {
       supabase.removeChannel(channel);
-      if (stopTypingTimeoutRef.current)
-        clearTimeout(stopTypingTimeoutRef.current);
+      if (stopTypingTimeoutRef.current) clearTimeout(stopTypingTimeoutRef.current);
     };
   }, [currentUserId, friendId]);
 
@@ -310,25 +331,6 @@ export default function ChatThread({
     });
   }
 
-    async function handleCallEnded(
-    type: "audio" | "video",
-    status: "completed" | "missed" | "declined",
-    duration: number
-  ) {
-    const newMsg: Message = {
-      id: `temp-${Date.now()}`,
-      sender_id: currentUserId,
-      content: null,
-      call_type: type,
-      call_status: status,
-      call_duration: duration,
-      created_at: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, newMsg]);
-    channelRef.current?.send({ type: "broadcast", event: "new_message", payload: newMsg });
-    await logCallMessage(friendId, type, status, duration);
-  }
-
   async function handlePing(label: string) {
     setShowPingMenu(false);
     const newMsg: Message = {
@@ -346,8 +348,6 @@ export default function ChatThread({
     });
     await sendPing(friendId, label);
   }
-
-  
 
   async function handleReact(msg: Message, emoji: string) {
     setReactionPickerFor(null);
@@ -465,9 +465,6 @@ export default function ChatThread({
     await sendImageMessage(friendId, publicUrl);
   }
 
-  // Picking an existing short video from the gallery — not a live recorder.
-  // We check its length client-side before uploading; anything over the cap
-  // is rejected with a clear message instead of silently trimming it.
   async function handleVideoGallerySelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -813,30 +810,22 @@ export default function ChatThread({
                           <div className={styles.avatarSpacer} />
                         ))}
 
-                        
-
                       {msg.call_status ? (
-  <div className={styles.callLogPill}>
-    {msg.call_type === "video" ? "🎥" : "📞"}{" "}
-    {msg.call_status === "completed"
-      ? `${msg.call_type === "video" ? "Video" : "Voice"} call · ${Math.floor(
-          (msg.call_duration || 0) / 60
-        )}:${((msg.call_duration || 0) % 60)
-          .toString()
-          .padStart(2, "0")}`
-      : msg.call_status === "declined"
-      ? isMine
-        ? "Call declined"
-        : "You declined"
-      : isMine
-      ? "No answer"
-      : "Missed call"}
-  </div>
-) : msg.ping_label ? (
-  <div className={styles.pingPill}>{msg.ping_label}</div>
-) : msg.listing_id ? (
-  // YOUR EXISTING LISTING CODE
-                        
+                        <div className={styles.callLogPill}>
+                          {msg.call_type === "video" ? "🎥" : "📞"}{" "}
+                          {msg.call_status === "completed"
+                            ? `${msg.call_type === "video" ? "Video" : "Voice"} call · ${formatCallDuration(
+                                msg.call_duration || 0
+                              )}`
+                            : msg.call_status === "declined"
+                            ? isMine
+                              ? "Call declined"
+                              : "You declined"
+                            : isMine
+                            ? "No answer"
+                            : "Missed call"}
+                        </div>
+                      ) : msg.ping_label ? (
                         <div className={styles.pingPill}>{msg.ping_label}</div>
                       ) : msg.listing_id ? (
                         <Link
@@ -904,9 +893,7 @@ export default function ChatThread({
                     </div>
 
                     {msg.reactions && msg.reactions.length > 0 && (
-                      <div
-                        className={isMine ? styles.timestampMine : styles.timestampTheirs}
-                      >
+                      <div className={isMine ? styles.timestampMine : styles.timestampTheirs}>
                         {Object.entries(
                           msg.reactions.reduce((acc: any, r) => {
                             acc[r.emoji] = (acc[r.emoji] || 0) + 1;
@@ -932,10 +919,7 @@ export default function ChatThread({
                           </button>
                         ))}
                         <div className={styles.actionDivider} />
-                        <button
-                          className={styles.replyIconBtn}
-                          onClick={() => handleStartReply(msg)}
-                        >
+                        <button className={styles.replyIconBtn} onClick={() => handleStartReply(msg)}>
                           <CornerUpLeft size={16} />
                         </button>
                       </div>
@@ -1045,10 +1029,7 @@ export default function ChatThread({
                 </div>
                 <div className={styles.replyPreviewText}>{replyTarget.content}</div>
               </div>
-              <button
-                className={styles.replyPreviewClose}
-                onClick={() => setReplyTarget(null)}
-              >
+              <button className={styles.replyPreviewClose} onClick={() => setReplyTarget(null)}>
                 ×
               </button>
             </div>
@@ -1092,11 +1073,7 @@ export default function ChatThread({
             {showPingMenu && (
               <div className={styles.pingMenu}>
                 {PINGS.map((p) => (
-                  <button
-                    key={p}
-                    className={styles.pingOption}
-                    onClick={() => handlePing(p)}
-                  >
+                  <button key={p} className={styles.pingOption} onClick={() => handlePing(p)}>
                     {p}
                   </button>
                 ))}

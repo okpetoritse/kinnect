@@ -41,8 +41,6 @@ export function useDMCall(
   const [callerName, setCallerName] = useState("");
   const [duration, setDuration] = useState(0);
   const [isVideoCall, setIsVideoCall] = useState(false);
-  const [localVideoEl, setLocalVideoEl] = useState<HTMLVideoElement | null>(null);
-  const [remoteVideoEl, setRemoteVideoEl] = useState<HTMLVideoElement | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -52,6 +50,21 @@ export function useDMCall(
   const pendingOfferRef = useRef<any>(null);
   const wasConnectedRef = useRef(false);
   const durationRef = useRef(0);
+
+  // DOM video elements are refs, not state — this is the key fix.
+  // Refs never trigger a re-render or effect re-run, and .current is
+  // always fresh when read inside async callbacks, so the signaling
+  // channel below stays alive for the entire call instead of being
+  // torn down and rebuilt whenever a <video> element mounts.
+  const localVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const remoteVideoElRef = useRef<HTMLVideoElement | null>(null);
+
+  function setLocalVideoEl(el: HTMLVideoElement | null) {
+    localVideoElRef.current = el;
+  }
+  function setRemoteVideoEl(el: HTMLVideoElement | null) {
+    remoteVideoElRef.current = el;
+  }
 
   function roomName() {
     return `call-${[currentUserId, friendId].sort().join("-")}`;
@@ -85,7 +98,9 @@ export function useDMCall(
 
     pc.ontrack = (event) => {
       if (event.track.kind === "video") {
-        if (remoteVideoEl) remoteVideoEl.srcObject = event.streams[0];
+        if (remoteVideoElRef.current) {
+          remoteVideoElRef.current.srcObject = event.streams[0];
+        }
       } else {
         if (!remoteAudioRef.current) {
           remoteAudioRef.current = document.createElement("audio");
@@ -114,6 +129,8 @@ export function useDMCall(
     durationTimerRef.current = null;
   }
 
+  // This effect now only depends on friendId/currentUserId — it subscribes
+  // exactly once per conversation and never tears down mid-call.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase.channel(roomName());
@@ -159,7 +176,7 @@ export function useDMCall(
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [friendId, currentUserId, remoteVideoEl]);
+  }, [friendId, currentUserId]);
 
   function cleanup() {
     localStreamRef.current?.getTracks().forEach((t) => {
@@ -177,8 +194,8 @@ export function useDMCall(
       remoteAudioRef.current.remove();
       remoteAudioRef.current = null;
     }
-    if (remoteVideoEl) remoteVideoEl.srcObject = null;
-    if (localVideoEl) localVideoEl.srcObject = null;
+    if (remoteVideoElRef.current) remoteVideoElRef.current.srcObject = null;
+    if (localVideoElRef.current) localVideoElRef.current.srcObject = null;
 
     stopDurationTimer();
     pendingOfferRef.current = null;
@@ -202,40 +219,59 @@ export function useDMCall(
     setIsVideoCall(video);
     wasConnectedRef.current = false;
 
-    const stream = await getMedia(video);
-    localStreamRef.current = stream;
-    if (video && localVideoEl) localVideoEl.srcObject = stream;
+    try {
+      const stream = await getMedia(video);
+      localStreamRef.current = stream;
+      if (video && localVideoElRef.current) localVideoElRef.current.srcObject = stream;
 
-    const pc = createPeerConnection();
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
+      const pc = createPeerConnection();
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
 
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "call-offer",
-      payload: { from: currentUserId, callerName: currentUserName, offer, video },
-    });
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "call-offer",
+        payload: { from: currentUserId, callerName: currentUserName, offer, video },
+      });
+    } catch (err) {
+      console.error("startCall failed:", err);
+      cleanup();
+      setCallState("idle");
+    }
   }
 
   async function acceptCall() {
-    const stream = await getMedia(isVideoCall);
-    localStreamRef.current = stream;
-    if (isVideoCall && localVideoEl) localVideoEl.srcObject = stream;
+    if (!pendingOfferRef.current) {
+      console.error("No pending offer to accept");
+      cleanup();
+      setCallState("idle");
+      return;
+    }
 
-    const pc = createPeerConnection();
-    await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
+    try {
+      const stream = await getMedia(isVideoCall);
+      localStreamRef.current = stream;
+      if (isVideoCall && localVideoElRef.current) localVideoElRef.current.srcObject = stream;
 
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "call-answer",
-      payload: { from: currentUserId, answer },
-    });
+      const pc = createPeerConnection();
+      await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
 
-    wasConnectedRef.current = true;
-    setCallState("connected");
-    startDurationTimer();
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "call-answer",
+        payload: { from: currentUserId, answer },
+      });
+
+      wasConnectedRef.current = true;
+      setCallState("connected");
+      startDurationTimer();
+    } catch (err) {
+      console.error("acceptCall failed:", err);
+      cleanup();
+      setCallState("idle");
+    }
   }
 
   function declineCall() {

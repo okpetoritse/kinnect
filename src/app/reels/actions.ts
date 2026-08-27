@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { sendPushToUser } from "@/lib/notifications/sendPush";
 
 export async function getFriendsWithActiveReels() {
   const supabase = await createClient();
@@ -185,6 +186,18 @@ export async function toggleReelSpark(entryId: string) {
     entry_id: entryId,
     user_id: user.id,
   });
+
+  const { data: entry } = await supabase
+    .from("community_goal_progress")
+    .select("user_id")
+    .eq("id", entryId)
+    .single();
+
+  if (entry && entry.user_id !== user.id) {
+    const name = user.user_metadata?.full_name || "Someone";
+    sendPushToUser(entry.user_id, "✦ New spark", `${name} sparked your progress`, "/home");
+  }
+
   return { sparked: true };
 }
 

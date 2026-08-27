@@ -257,6 +257,9 @@
   align-items: flex-end;
   position:relative;
   gap: 8px;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .messageRowMine {
