@@ -4,10 +4,17 @@ import { useState } from "react";
 import { sendFriendRequest } from "@/app/friends/actions";
 import Avatar from "@/components/Avatar";
 import styles from "./page.module.css";
+import FounderBadge from "@/components/FounderBadge";
 
 type Member = {
   userId: string;
-  profile: { id: string; full_name: string | null; username: string | null; avatar_url: string | null };
+  profile: {
+    id: string;
+    full_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+    founding_number: number | null;
+  };
   friendStatus: "none" | "pending" | "friends";
 };
 
@@ -36,8 +43,9 @@ export default function MembersList({ members }: { members: Member[] }) {
             />
             <div>
               <div className={styles.memberName}>
-                {m.profile?.full_name || "Unnamed"}
-              </div>
+  {m.profile?.full_name || "Unnamed"}
+  <FounderBadge number={m.profile?.founding_number} />
+</div>
               <div className={styles.memberEmail}>
                 {m.profile?.username ? `@${m.profile.username}` : "No username set"}
               </div>

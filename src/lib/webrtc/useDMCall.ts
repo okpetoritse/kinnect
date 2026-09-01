@@ -58,6 +58,8 @@ export function useDMCall(
   // torn down and rebuilt whenever a <video> element mounts.
   const localVideoElRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoElRef = useRef<HTMLVideoElement | null>(null);
+  const [callError, setCallError] = useState<string | null>(null);
+  const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function setLocalVideoEl(el: HTMLVideoElement | null) {
     localVideoElRef.current = el;
@@ -143,10 +145,11 @@ export function useDMCall(
         setIsVideoCall(!!payload.video);
         setCallState("ringing");
       })
-      .on("broadcast", { event: "call-answer" }, async ({ payload }: any) => {
+            .on("broadcast", { event: "call-answer" }, async ({ payload }: any) => {
         if (payload.from === currentUserId) return;
         const pc = pcRef.current;
         if (pc && pc.signalingState === "have-local-offer") {
+          if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
           await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
           wasConnectedRef.current = true;
           setCallState("connected");
@@ -229,6 +232,7 @@ export function useDMCall(
       await pc.setLocalDescription(offer);
 
       channelRef.current?.send({
+        
         type: "broadcast",
         event: "call-offer",
         payload: { from: currentUserId, callerName: currentUserName, offer, video },
@@ -267,8 +271,9 @@ export function useDMCall(
       wasConnectedRef.current = true;
       setCallState("connected");
       startDurationTimer();
-    } catch (err) {
+        } catch (err: any) {
       console.error("acceptCall failed:", err);
+      setCallError(err?.message || "Could not connect the call");
       cleanup();
       setCallState("idle");
     }
@@ -324,12 +329,13 @@ export function useDMCall(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [callState]);
 
-  return {
+    return {
     callState,
     callerName,
     muted,
     duration,
     isVideoCall,
+    callError,
     startCall,
     acceptCall,
     declineCall,

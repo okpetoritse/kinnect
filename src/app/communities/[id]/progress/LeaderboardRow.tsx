@@ -46,6 +46,8 @@ export default function LeaderboardRow({
 
       {viewing && reelEntries && (
         <ReelViewer
+        ownerId={entry.userId}
+canComment={false}
           name={entry.name}
           avatarUrl={entry.avatarUrl}
           entries={reelEntries}

@@ -723,7 +723,7 @@ export async function getCommunityMembersWithFriendStatus(communityId: string) {
 
   const { data: members } = await supabase
     .from("community_members")
-    .select("user_id, profile:profiles!community_members_user_id_fkey(id, full_name, username, avatar_url)")
+    .select("user_id, profile:profiles!community_members_user_id_fkey(id, full_name, username, avatar_url, founding_number)")
     .eq("community_id", communityId);
 
   const { data: friendRows } = await supabase

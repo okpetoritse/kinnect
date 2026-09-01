@@ -16,10 +16,11 @@ type FriendReel = {
 export default function ReelStrip({ currentUserId }: { currentUserId: string }) {
   const [friends, setFriends] = useState<FriendReel[]>([]);
   const [active, setActive] = useState<{
-    name: string;
-    avatarUrl: string | null;
-    entries: any[];
-  } | null>(null);
+  ownerId: string;
+  name: string;
+  avatarUrl: string | null;
+  entries: any[];
+} | null>(null);
 
   useEffect(() => {
     getFriendsWithActiveReels().then(setFriends);
@@ -28,7 +29,12 @@ export default function ReelStrip({ currentUserId }: { currentUserId: string }) 
   async function handleOpen(friend: FriendReel) {
     const entries = await getReelEntries(friend.id);
     if (entries.length === 0) return;
-    setActive({ name: friend.name, avatarUrl: friend.avatarUrl, entries });
+    setActive({
+  ownerId: friend.id,
+  name: friend.name,
+  avatarUrl: friend.avatarUrl,
+  entries,
+});
     setFriends((prev) =>
       prev.map((f) => (f.id === friend.id ? { ...f, hasUnseen: false } : f))
     );
@@ -56,11 +62,13 @@ export default function ReelStrip({ currentUserId }: { currentUserId: string }) 
       </div>
 
       {active && (
-        <ReelViewer
+                <ReelViewer
           name={active.name}
           avatarUrl={active.avatarUrl}
+          ownerId={active.ownerId}
           entries={active.entries}
           currentUserId={currentUserId}
+          canComment={true}
           onClose={() => setActive(null)}
         />
       )}

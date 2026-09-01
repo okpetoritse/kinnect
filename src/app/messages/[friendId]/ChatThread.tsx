@@ -198,6 +198,7 @@ export default function ChatThread({
 
   const {
     callState,
+    callError,
     callerName,
     muted: callMuted,
     duration: callDuration,
@@ -1178,10 +1179,24 @@ export default function ChatThread({
             {callState === "ringing" ? callerName : friendName}
           </div>
           <div className={styles.callStatus}>
+            
             {callState === "calling" && "Calling..."}
             {callState === "ringing" && "Incoming call"}
             {callState === "connected" && formatCallDuration(callDuration)}
           </div>
+
+          {callError && (
+  <div
+    style={{
+      color: "var(--coral)",
+      fontSize: 12,
+      marginTop: 8,
+      textAlign: "center",
+    }}
+  >
+    {callError}
+  </div>
+)}
 
           {callState === "ringing" ? (
             <div className={styles.callActions}>

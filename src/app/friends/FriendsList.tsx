@@ -6,12 +6,14 @@ import Avatar from "@/components/Avatar";
 import ReelViewer from "@/components/ReelViewer";
 import styles from "./page.module.css";
 import { getFriendsPaginated } from "./actions";
+import FounderBadge from "@/components/FounderBadge";
 
 type Friend = {
   id: string;
   full_name: string | null;
   username: string | null;
   avatar_url: string | null;
+  founding_number: number | null;
 };
 
 
@@ -30,10 +32,11 @@ export default function FriendsList({
   const [loadingMore, setLoadingMore] = useState(false);
   const [status, setStatus] = useState<Record<string, { hasEntries: boolean; hasUnseenRecent: boolean }>>({});
   const [active, setActive] = useState<{
-    name: string;
-    avatarUrl: string | null;
-    entries: any[];
-  } | null>(null);
+  ownerId: string;
+  name: string;
+  avatarUrl: string | null;
+  entries: any[];
+} | null>(null);
 
   useEffect(() => {
     getFriendsReelStatus().then(setStatus);
@@ -57,10 +60,11 @@ export default function FriendsList({
     if (entries.length === 0) return;
 
     setActive({
-      name: friend.full_name || "Unknown",
-      avatarUrl: friend.avatar_url,
-      entries,
-    });
+  ownerId: friend.id,
+  name: friend.full_name || "Unknown",
+  avatarUrl: friend.avatar_url,
+  entries,
+});
 
     setStatus((prev) => ({
       ...prev,
@@ -96,7 +100,10 @@ export default function FriendsList({
                 />
               </button>
               <div>
-                <div className={styles.name}>{friend.full_name || "Unnamed"}</div>
+                <div className={styles.name}>
+  {friend.full_name || "Unnamed"}
+  <FounderBadge number={friend.founding_number} />
+</div>
                 <div className={styles.email}>
                   {friend.username ? `@${friend.username}` : "No username set"}
                 </div>
@@ -118,12 +125,14 @@ export default function FriendsList({
 
       {active && (
         <ReelViewer
-          name={active.name}
-          avatarUrl={active.avatarUrl}
-          entries={active.entries}
-          currentUserId={currentUserId}
-          onClose={() => setActive(null)}
-        />
+  name={active.name}
+  avatarUrl={active.avatarUrl}
+  ownerId={active.ownerId}
+  entries={active.entries}
+  currentUserId={currentUserId}
+  canComment={true}
+  onClose={() => setActive(null)}
+/>
       )}
     </>
   );

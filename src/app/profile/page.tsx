@@ -9,6 +9,7 @@ import UsernameEditor from "./UsernameEditor";
 import CountryPicker from "./CountryPicker";
 import DeleteAccountButton from "./DeleteAccountButton";
 import NotificationToggle from "./NotificationToggle";
+import FounderBadge from "@/components/FounderBadge";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
@@ -20,7 +21,7 @@ export default async function ProfilePage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, avatar_url, username, country")
+    .select("full_name, avatar_url, username, country, founding_number")
     .eq("id", user.id)
     .single();
 
@@ -34,7 +35,10 @@ export default async function ProfilePage() {
         name={name}
         initialAvatarUrl={profile?.avatar_url || null}
       />
-      <div className={styles.name}>{name}</div>
+      <div className={styles.name}>
+  {name}
+  <FounderBadge number={profile?.founding_number} />
+</div>
       <div className={styles.email}>{user.email}</div>
 
       <UsernameEditor initialUsername={profile?.username || null} />

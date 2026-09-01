@@ -7,6 +7,7 @@ import { MessageCircle, Users, Calendar } from "lucide-react";
 import HomeCarousel from "@/components/HomeCarousel";
 import { getFriendsWithActiveReels } from "@/app/reels/actions";
 import Avatar from "@/components/Avatar";
+import FounderBadge from "@/components/FounderBadge";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -49,7 +50,10 @@ export default async function HomePage() {
                            <Avatar name={c.name} avatarUrl={c.avatarUrl} size={40} />
                            
               <div className={styles.conversationBody}>
-                <div className={styles.conversationName}>{c.name}</div>
+                <div className={styles.conversationName}>
+                  {c.name}
+                  <FounderBadge number={c.foundingNumber} />
+                </div>
                 <div className={styles.conversationPreview}>
                   {c.lastMessage}
                 </div>

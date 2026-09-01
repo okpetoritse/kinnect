@@ -26,7 +26,7 @@ export async function searchUsers(query: string) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, username, avatar_url")
+    .select("id, full_name, username, avatar_url, founding_number")
     .not("id", "in", `(${Array.from(excludedIds).join(",")})`)
     .or(`full_name.ilike.%${cleanQuery}%,username.ilike.%${cleanQuery}%`)
     .limit(10);
@@ -113,8 +113,8 @@ export async function getFriendsPaginated(cursor?: string) {
   let request = supabase
     .from("friend_requests")
     .select(
-      "id, created_at, sender_id, receiver_id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url), receiver:profiles!friend_requests_receiver_id_fkey(id, full_name, username, avatar_url)"
-    )
+  "id, created_at, sender_id, receiver_id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url, founding_number), receiver:profiles!friend_requests_receiver_id_fkey(id, full_name, username, avatar_url, founding_number)"
+)
     .eq("status", "accepted")
     .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
     .order("created_at", { ascending: false })

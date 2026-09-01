@@ -307,8 +307,8 @@ export async function getMessagesFriendsPaginated(cursor?: string) {
 
   let request = supabase
     .from("friend_requests")
-    .select(
-      "id, created_at, sender_id, receiver_id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url), receiver:profiles!friend_requests_receiver_id_fkey(id, full_name, username, avatar_url)"
+        .select(
+      "id, created_at, sender_id, receiver_id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url, founding_number), receiver:profiles!friend_requests_receiver_id_fkey(id, full_name, username, avatar_url, founding_number)"
     )
     .eq("status", "accepted")
     .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)

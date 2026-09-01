@@ -43,9 +43,10 @@ export default function HomeCarousel({
 }) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
-  const [active, setActive] = useState<{
+    const [active, setActive] = useState<{
     name: string;
     avatarUrl: string | null;
+    ownerId: string;
     entries: any[];
   } | null>(null);
 
@@ -93,10 +94,11 @@ type Slide =
       const entries = await getReelEntries(slide.friend.id);
       if (entries.length === 0) return;
       setActive({
-        name: slide.friend.name,
-        avatarUrl: slide.friend.avatarUrl,
-        entries,
-      });
+  name: slide.friend.name,
+  avatarUrl: slide.friend.avatarUrl,
+  ownerId: slide.friend.id,  // <--- ADD THIS LINE
+  entries
+});
     } else if (slide.type === "cta") {
       router.push("/communities");
     } else if (slide.type === "promo") {
@@ -191,12 +193,14 @@ type Slide =
         )}
       </div>
 
-      {active && (
+            {active && (
         <ReelViewer
           name={active.name}
           avatarUrl={active.avatarUrl}
+          ownerId={active.ownerId}
           entries={active.entries}
           currentUserId={currentUserId}
+          canComment={true}
           onClose={() => setActive(null)}
         />
       )}

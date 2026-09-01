@@ -7,6 +7,7 @@ import Avatar from "@/components/Avatar";
 import AppHeader from "@/components/AppHeader";
 import FriendsList from "./FriendsList";
 import { getFriendsPaginated } from "./actions";
+import FounderBadge from "@/components/FounderBadge";
 
 export default async function FriendsPage() {
   const supabase = await createClient();
@@ -17,12 +18,12 @@ export default async function FriendsPage() {
   if (!user) redirect("/login");
 
   const { data: incoming } = await supabase
-    .from("friend_requests")
-    .select(
-      "id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url)"
-    )
-    .eq("receiver_id", user.id)
-    .eq("status", "pending");
+  .from("friend_requests")
+  .select(
+    "id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url, founding_number)"
+  )
+  .eq("receiver_id", user.id)
+  .eq("status", "pending");
 
   const { friends, nextCursor } = await getFriendsPaginated();
 
@@ -45,8 +46,9 @@ export default async function FriendsPage() {
               />
               <div>
                 <div className={styles.name}>
-                  {(req.sender as any)?.full_name || "Unnamed"}
-                </div>
+  {(req.sender as any)?.full_name || "Unnamed"}
+  <FounderBadge number={(req.sender as any)?.founding_number} />
+</div> 
                 <div className={styles.email}>
                   {(req.sender as any)?.username
                     ? `@${(req.sender as any).username}`

@@ -6,12 +6,14 @@ import { createClient } from "@/lib/supabase/client";
 import { getMessagesFriendsPaginated } from "./actions";
 import Avatar from "@/components/Avatar";
 import styles from "./page.module.css";
+import FounderBadge from "@/components/FounderBadge";
 
 type Friend = {
   id: string;
   full_name: string | null;
   username: string | null;
   avatar_url: string | null;
+   founding_number?: number | null;
   lastMessagePreview?: string;
   lastMessageTime?: string | null;
 };
@@ -92,7 +94,10 @@ export default function MessagesList({
               size={40}
             />
                       <div>
-              <div className={styles.name}>{friend.full_name || "Unnamed"}</div>
+              <div className={styles.name}>
+                {friend.full_name || "Unnamed"}
+                <FounderBadge number={friend.founding_number} />
+              </div>
               <div className={styles.lastMessage}>
                 {friend.lastMessagePreview || (friend.username ? `@${friend.username}` : "No messages yet")}
               </div>

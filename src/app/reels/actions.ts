@@ -103,9 +103,6 @@ export async function getReelEntries(targetUserId: string) {
         .in("entry_id", entryIds)
     : { data: [] };
 
-  // Flatten: an entry with multiple media items becomes multiple slides,
-  // each carrying the same value/note/sparks as its parent entry. An entry
-  // with zero media (or only the legacy single media_url) becomes one slide.
   const slides: any[] = [];
 
   data.forEach((entry) => {
@@ -290,4 +287,41 @@ export async function getActivePromotions() {
 
   // Soonest-expiring promotions surface first, capped so Home never gets flooded
   return [...postSlides, ...listingSlides].slice(0, 5);
+}
+
+export async function sendReelComment(entryId: string, message: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+
+  const { data: entry } = await supabase
+    .from("community_goal_progress")
+    .select("user_id, note, media_url")
+    .eq("id", entryId)
+    .single();
+
+  if (!entry || entry.user_id === user.id) return { error: "Cannot comment here" };
+
+  const { data: friendship } = await supabase
+    .from("friend_requests")
+    .select("id")
+    .eq("status", "accepted")
+    .or(
+      `and(sender_id.eq.${user.id},receiver_id.eq.${entry.user_id}),and(sender_id.eq.${entry.user_id},receiver_id.eq.${user.id})`
+    )
+    .maybeSingle();
+
+  if (!friendship) return { error: "Only friends can comment on this" };
+
+  const { error } = await supabase.from("messages").insert({
+    sender_id: user.id,
+    receiver_id: entry.user_id,
+    content: `💬 On your progress: "${message}"`,
+    image_url: entry.media_url,
+  });
+
+  if (error) return { error: error.message };
+  return { success: true };
 }
