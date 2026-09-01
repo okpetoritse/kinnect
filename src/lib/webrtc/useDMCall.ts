@@ -41,31 +41,41 @@ export function useDMCall(
   const [callerName, setCallerName] = useState("");
   const [duration, setDuration] = useState(0);
   const [isVideoCall, setIsVideoCall] = useState(false);
+  const [callError, setCallError] = useState<string | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const channelRef = useRef<any>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingOfferRef = useRef<any>(null);
   const wasConnectedRef = useRef(false);
   const durationRef = useRef(0);
 
-  // DOM video elements are refs, not state — this is the key fix.
-  // Refs never trigger a re-render or effect re-run, and .current is
-  // always fresh when read inside async callbacks, so the signaling
-  // channel below stays alive for the entire call instead of being
-  // torn down and rebuilt whenever a <video> element mounts.
+  // Read anywhere inside async/event code without needing to be an effect
+  // dependency — this is the actual fix for the "call cuts on connect" bug.
+  const callStateRef = useRef<CallState>("idle");
+  useEffect(() => {
+    callStateRef.current = callState;
+  }, [callState]);
+
   const localVideoElRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoElRef = useRef<HTMLVideoElement | null>(null);
-  const [callError, setCallError] = useState<string | null>(null);
-  const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function setLocalVideoEl(el: HTMLVideoElement | null) {
     localVideoElRef.current = el;
+    if (el && localStreamRef.current) {
+      el.srcObject = localStreamRef.current;
+    }
   }
+
   function setRemoteVideoEl(el: HTMLVideoElement | null) {
     remoteVideoElRef.current = el;
+    if (el && remoteStreamRef.current) {
+      el.srcObject = remoteStreamRef.current;
+    }
   }
 
   function roomName() {
@@ -81,6 +91,7 @@ export function useDMCall(
       remoteAudioRef.current.remove();
       remoteAudioRef.current = null;
     }
+    remoteStreamRef.current = null;
 
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
@@ -100,6 +111,7 @@ export function useDMCall(
 
     pc.ontrack = (event) => {
       if (event.track.kind === "video") {
+        remoteStreamRef.current = event.streams[0];
         if (remoteVideoElRef.current) {
           remoteVideoElRef.current.srcObject = event.streams[0];
         }
@@ -131,8 +143,8 @@ export function useDMCall(
     durationTimerRef.current = null;
   }
 
-  // This effect now only depends on friendId/currentUserId — it subscribes
-  // exactly once per conversation and never tears down mid-call.
+  // This effect subscribes exactly once per conversation. It no longer
+  // depends on callState, so it is never torn down mid-call.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase.channel(roomName());
@@ -145,7 +157,7 @@ export function useDMCall(
         setIsVideoCall(!!payload.video);
         setCallState("ringing");
       })
-            .on("broadcast", { event: "call-answer" }, async ({ payload }: any) => {
+      .on("broadcast", { event: "call-answer" }, async ({ payload }: any) => {
         if (payload.from === currentUserId) return;
         const pc = pcRef.current;
         if (pc && pc.signalingState === "have-local-offer") {
@@ -187,6 +199,7 @@ export function useDMCall(
       t.stop();
     });
     localStreamRef.current = null;
+    remoteStreamRef.current = null;
 
     pcRef.current?.close();
     pcRef.current = null;
@@ -201,6 +214,7 @@ export function useDMCall(
     if (localVideoElRef.current) localVideoElRef.current.srcObject = null;
 
     stopDurationTimer();
+    if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
     pendingOfferRef.current = null;
     setMuted(false);
     wasConnectedRef.current = false;
@@ -220,25 +234,40 @@ export function useDMCall(
   async function startCall(video: boolean = false) {
     setCallState("calling");
     setIsVideoCall(video);
+    setCallError(null);
     wasConnectedRef.current = false;
 
     try {
       const stream = await getMedia(video);
       localStreamRef.current = stream;
-      if (video && localVideoElRef.current) localVideoElRef.current.srcObject = stream;
+      if (video && localVideoElRef.current) {
+        localVideoElRef.current.srcObject = stream;
+      }
 
       const pc = createPeerConnection();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
       channelRef.current?.send({
-        
         type: "broadcast",
         event: "call-offer",
         payload: { from: currentUserId, callerName: currentUserName, offer, video },
       });
-    } catch (err) {
+
+      if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = setTimeout(() => {
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "call-end",
+          payload: { from: currentUserId },
+        });
+        onCallEnded?.(video ? "video" : "audio", "missed", 0);
+        cleanup();
+        setCallState("idle");
+      }, 30000);
+    } catch (err: any) {
       console.error("startCall failed:", err);
+      setCallError(err?.message || "Could not start the call");
       cleanup();
       setCallState("idle");
     }
@@ -247,6 +276,7 @@ export function useDMCall(
   async function acceptCall() {
     if (!pendingOfferRef.current) {
       console.error("No pending offer to accept");
+      setCallError("This call is no longer available");
       cleanup();
       setCallState("idle");
       return;
@@ -255,7 +285,9 @@ export function useDMCall(
     try {
       const stream = await getMedia(isVideoCall);
       localStreamRef.current = stream;
-      if (isVideoCall && localVideoElRef.current) localVideoElRef.current.srcObject = stream;
+      if (isVideoCall && localVideoElRef.current) {
+        localVideoElRef.current.srcObject = stream;
+      }
 
       const pc = createPeerConnection();
       await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
@@ -271,7 +303,7 @@ export function useDMCall(
       wasConnectedRef.current = true;
       setCallState("connected");
       startDurationTimer();
-        } catch (err: any) {
+    } catch (err: any) {
       console.error("acceptCall failed:", err);
       setCallError(err?.message || "Could not connect the call");
       cleanup();
@@ -312,24 +344,31 @@ export function useDMCall(
     setMuted(newMuted);
   }
 
+  // This effect runs exactly once. It reads callStateRef.current at the
+  // moment the event fires, so it never needs callState as a dependency —
+  // meaning its cleanup never runs mid-call.
   useEffect(() => {
     function handleVisibilityChange() {
-      if (document.hidden && callState === "connected") {
+      if (document.hidden && callStateRef.current === "connected") {
         endCall();
       }
     }
-    window.addEventListener("beforeunload", cleanup);
+    function handleBeforeUnload() {
+      cleanup();
+    }
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      cleanup();
-      window.removeEventListener("beforeunload", cleanup);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      cleanup();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [callState]);
+  }, []);
 
-    return {
+  return {
     callState,
     callerName,
     muted,

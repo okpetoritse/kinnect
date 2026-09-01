@@ -267,9 +267,10 @@ export default function ChatThread({
           if (prev.some((m) => m.id === newMsg.id)) return prev;
           return [...prev, newMsg];
         });
-        setFriendIsTyping(false);
+         setFriendIsTyping(false);
         if (newMsg.sender_id !== currentUserId) {
           markMessagesRead(friendId);
+          setTimeout(() => markMessagesRead(friendId), 1500);
         }
       })
       .on("broadcast", { event: "typing" }, (payload) => {
