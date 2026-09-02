@@ -125,6 +125,14 @@ export function useDMCall(
       }
     };
 
+        pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
+        setCallError("Connection is unstable — this may be a network issue");
+      } else if (pc.iceConnectionState === "connected") {
+        setCallError(null);
+      }
+    };
+
     pcRef.current = pc;
     return pc;
   }
@@ -220,14 +228,23 @@ export function useDMCall(
     wasConnectedRef.current = false;
   }
 
-  async function getMedia(video: boolean) {
+    async function getMedia(video: boolean) {
     return navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
+        channelCount: 1,
+        sampleRate: 48000,
       },
-      video: video ? { facingMode: "user" } : false,
+      video: video
+        ? {
+            facingMode: "user",
+            width: { ideal: 480, max: 640 },
+            height: { ideal: 640, max: 854 },
+            frameRate: { ideal: 20, max: 24 },
+          }
+        : false,
     });
   }
 
