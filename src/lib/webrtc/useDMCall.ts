@@ -64,6 +64,40 @@ export function useDMCall(
   const localVideoElRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoElRef = useRef<HTMLVideoElement | null>(null);
 
+    const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+
+    const ringbackRef = useRef<HTMLAudioElement | null>(null);
+
+function startRingback() {
+  if (!ringbackRef.current) {
+    ringbackRef.current = new Audio("/ringback.mp3");
+    ringbackRef.current.loop = true;
+  }
+  ringbackRef.current.play().catch(() => {});
+}
+
+function stopRingback() {
+  ringbackRef.current?.pause();
+  if (ringbackRef.current) ringbackRef.current.currentTime = 0;
+}
+
+  function startRinging() {
+    if (!ringtoneRef.current) {
+      ringtoneRef.current = new Audio("/ringtone.mp3");
+      ringtoneRef.current.loop = true;
+    }
+    ringtoneRef.current.play().catch(() => {});
+    if ("vibrate" in navigator) {
+      navigator.vibrate([500, 300, 500, 300, 500, 300]);
+    }
+  }
+
+  function stopRinging() {
+    ringtoneRef.current?.pause();
+    if (ringtoneRef.current) ringtoneRef.current.currentTime = 0;
+    if ("vibrate" in navigator) navigator.vibrate(0);
+  }
+
   function setLocalVideoEl(el: HTMLVideoElement | null) {
     localVideoElRef.current = el;
     if (el && localStreamRef.current) {
@@ -164,6 +198,7 @@ export function useDMCall(
         setCallerName(payload.callerName);
         setIsVideoCall(!!payload.video);
         setCallState("ringing");
+        startRinging();
       })
       .on("broadcast", { event: "call-answer" }, async ({ payload }: any) => {
         if (payload.from === currentUserId) return;
@@ -171,6 +206,7 @@ export function useDMCall(
         if (pc && pc.signalingState === "have-local-offer") {
           if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
           await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+          stopRingback();
           wasConnectedRef.current = true;
           setCallState("connected");
           startDurationTimer();
@@ -201,8 +237,11 @@ export function useDMCall(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [friendId, currentUserId]);
 
-  function cleanup() {
-    localStreamRef.current?.getTracks().forEach((t) => {
+    function cleanup() {
+  stopRinging();
+  stopRingback();   // ← add this here
+
+  localStreamRef.current?.getTracks().forEach((t) => {
       t.enabled = false;
       t.stop();
     });
@@ -271,6 +310,8 @@ export function useDMCall(
         payload: { from: currentUserId, callerName: currentUserName, offer, video },
       });
 
+      startRingback();
+
       if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = setTimeout(() => {
         channelRef.current?.send({
@@ -290,7 +331,9 @@ export function useDMCall(
     }
   }
 
-  async function acceptCall() {
+    async function acceptCall() {
+    stopRinging();
+
     if (!pendingOfferRef.current) {
       console.error("No pending offer to accept");
       setCallError("This call is no longer available");
@@ -328,7 +371,9 @@ export function useDMCall(
     }
   }
 
-  function declineCall() {
+    function declineCall() {
+    stopRinging();
+
     channelRef.current?.send({
       type: "broadcast",
       event: "call-end",
@@ -339,7 +384,9 @@ export function useDMCall(
     setCallState("idle");
   }
 
-  function endCall() {
+    function endCall() {
+    stopRinging();
+
     channelRef.current?.send({
       type: "broadcast",
       event: "call-end",
