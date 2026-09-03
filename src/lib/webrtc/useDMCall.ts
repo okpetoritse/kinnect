@@ -54,8 +54,12 @@ export function useDMCall(
   const wasConnectedRef = useRef(false);
   const durationRef = useRef(0);
 
-  // Read anywhere inside async/event code without needing to be an effect
-  // dependency — this is the actual fix for the "call cuts on connect" bug.
+  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+  const ringbackRef = useRef<HTMLAudioElement | null>(null);
+
+  // Read the live call state inside async/event callbacks without needing
+  // to list callState as an effect dependency — this is what stops the
+  // visibility/unload effect from tearing the call down mid-connection.
   const callStateRef = useRef<CallState>("idle");
   useEffect(() => {
     callStateRef.current = callState;
@@ -64,22 +68,23 @@ export function useDMCall(
   const localVideoElRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoElRef = useRef<HTMLVideoElement | null>(null);
 
-    const ringtoneRef = useRef<HTMLAudioElement | null>(null);
-
-    const ringbackRef = useRef<HTMLAudioElement | null>(null);
-
-function startRingback() {
-  if (!ringbackRef.current) {
-    ringbackRef.current = new Audio("/ringback.mp3");
-    ringbackRef.current.loop = true;
+  function setLocalVideoEl(el: HTMLVideoElement | null) {
+    localVideoElRef.current = el;
+    if (el && localStreamRef.current) {
+      el.srcObject = localStreamRef.current;
+    }
   }
-  ringbackRef.current.play().catch(() => {});
-}
 
-function stopRingback() {
-  ringbackRef.current?.pause();
-  if (ringbackRef.current) ringbackRef.current.currentTime = 0;
-}
+  function setRemoteVideoEl(el: HTMLVideoElement | null) {
+    remoteVideoElRef.current = el;
+    if (el && remoteStreamRef.current) {
+      el.srcObject = remoteStreamRef.current;
+    }
+  }
+
+  function roomName() {
+    return `call-${[currentUserId, friendId].sort().join("-")}`;
+  }
 
   function startRinging() {
     if (!ringtoneRef.current) {
@@ -98,22 +103,17 @@ function stopRingback() {
     if ("vibrate" in navigator) navigator.vibrate(0);
   }
 
-  function setLocalVideoEl(el: HTMLVideoElement | null) {
-    localVideoElRef.current = el;
-    if (el && localStreamRef.current) {
-      el.srcObject = localStreamRef.current;
+  function startRingback() {
+    if (!ringbackRef.current) {
+      ringbackRef.current = new Audio("/ringback.mp3");
+      ringbackRef.current.loop = true;
     }
+    ringbackRef.current.play().catch(() => {});
   }
 
-  function setRemoteVideoEl(el: HTMLVideoElement | null) {
-    remoteVideoElRef.current = el;
-    if (el && remoteStreamRef.current) {
-      el.srcObject = remoteStreamRef.current;
-    }
-  }
-
-  function roomName() {
-    return `call-${[currentUserId, friendId].sort().join("-")}`;
+  function stopRingback() {
+    ringbackRef.current?.pause();
+    if (ringbackRef.current) ringbackRef.current.currentTime = 0;
   }
 
   function createPeerConnection() {
@@ -159,7 +159,7 @@ function stopRingback() {
       }
     };
 
-        pc.oniceconnectionstatechange = () => {
+    pc.oniceconnectionstatechange = () => {
       if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
         setCallError("Connection is unstable — this may be a network issue");
       } else if (pc.iceConnectionState === "connected") {
@@ -185,8 +185,6 @@ function stopRingback() {
     durationTimerRef.current = null;
   }
 
-  // This effect subscribes exactly once per conversation. It no longer
-  // depends on callState, so it is never torn down mid-call.
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase.channel(roomName());
@@ -205,8 +203,8 @@ function stopRingback() {
         const pc = pcRef.current;
         if (pc && pc.signalingState === "have-local-offer") {
           if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
-          await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
           stopRingback();
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
           wasConnectedRef.current = true;
           setCallState("connected");
           startDurationTimer();
@@ -237,11 +235,11 @@ function stopRingback() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [friendId, currentUserId]);
 
-    function cleanup() {
-  stopRinging();
-  stopRingback();   // ← add this here
+  function cleanup() {
+    stopRinging();
+    stopRingback();
 
-  localStreamRef.current?.getTracks().forEach((t) => {
+    localStreamRef.current?.getTracks().forEach((t) => {
       t.enabled = false;
       t.stop();
     });
@@ -267,7 +265,7 @@ function stopRingback() {
     wasConnectedRef.current = false;
   }
 
-    async function getMedia(video: boolean) {
+  async function getMedia(video: boolean) {
     return navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -331,9 +329,7 @@ function stopRingback() {
     }
   }
 
-    async function acceptCall() {
-    stopRinging();
-
+  async function acceptCall() {
     if (!pendingOfferRef.current) {
       console.error("No pending offer to accept");
       setCallError("This call is no longer available");
@@ -343,6 +339,8 @@ function stopRingback() {
     }
 
     try {
+      stopRinging();
+
       const stream = await getMedia(isVideoCall);
       localStreamRef.current = stream;
       if (isVideoCall && localVideoElRef.current) {
@@ -371,9 +369,7 @@ function stopRingback() {
     }
   }
 
-    function declineCall() {
-    stopRinging();
-
+  function declineCall() {
     channelRef.current?.send({
       type: "broadcast",
       event: "call-end",
@@ -384,9 +380,7 @@ function stopRingback() {
     setCallState("idle");
   }
 
-    function endCall() {
-    stopRinging();
-
+  function endCall() {
     channelRef.current?.send({
       type: "broadcast",
       event: "call-end",
@@ -408,9 +402,6 @@ function stopRingback() {
     setMuted(newMuted);
   }
 
-  // This effect runs exactly once. It reads callStateRef.current at the
-  // moment the event fires, so it never needs callState as a dependency —
-  // meaning its cleanup never runs mid-call.
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.hidden && callStateRef.current === "connected") {
