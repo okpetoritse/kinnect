@@ -54,8 +54,11 @@ export function useDMCall(
   const wasConnectedRef = useRef(false);
   const durationRef = useRef(0);
 
-  const ringtoneRef = useRef<HTMLAudioElement | null>(null);
-  const ringbackRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+const ringtoneSourceRef = useRef<AudioBufferSourceNode | null>(null);
+const ringbackSourceRef = useRef<AudioBufferSourceNode | null>(null);
+const ringtoneBufferRef = useRef<AudioBuffer | null>(null);
+const ringbackBufferRef = useRef<AudioBuffer | null>(null);
 
   // Read the live call state inside async/event callbacks without needing
   // to list callState as an effect dependency — this is what stops the
@@ -86,35 +89,81 @@ export function useDMCall(
     return `call-${[currentUserId, friendId].sort().join("-")}`;
   }
 
-  function startRinging() {
-    if (!ringtoneRef.current) {
-      ringtoneRef.current = new Audio("/ringtone.mp3");
-      ringtoneRef.current.loop = true;
-    }
-    ringtoneRef.current.play().catch(() => {});
-    if ("vibrate" in navigator) {
-      navigator.vibrate([500, 300, 500, 300, 500, 300]);
-    }
+  function getAudioCtx() {
+  if (!audioCtxRef.current) {
+    audioCtxRef.current = new AudioContext();
   }
+  return audioCtxRef.current;
+}
 
-  function stopRinging() {
-    ringtoneRef.current?.pause();
-    if (ringtoneRef.current) ringtoneRef.current.currentTime = 0;
-    if ("vibrate" in navigator) navigator.vibrate(0);
-  }
+async function loadBuffer(
+  url: string,
+  cacheRef: React.MutableRefObject<AudioBuffer | null>
+) {
+  if (cacheRef.current) return cacheRef.current;
+  const ctx = getAudioCtx();
+  const res = await fetch(url);
+  const arrayBuffer = await res.arrayBuffer();
+  const buffer = await ctx.decodeAudioData(arrayBuffer);
+  cacheRef.current = buffer;
+  return buffer;
+}
 
-  function startRingback() {
-    if (!ringbackRef.current) {
-      ringbackRef.current = new Audio("/ringback.mp3");
-      ringbackRef.current.loop = true;
-    }
-    ringbackRef.current.play().catch(() => {});
+async function startRinging() {
+  try {
+    stopRinging(); // don't leave an old source running
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") await ctx.resume();
+    const buffer = await loadBuffer("/ringtone.mp3", ringtoneBufferRef);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(ctx.destination);
+    source.start();
+    ringtoneSourceRef.current = source;
+  } catch (err) {
+    console.error("Ringtone playback failed:", err);
   }
+  if ("vibrate" in navigator) {
+    navigator.vibrate([500, 300, 500, 300, 500, 300]);
+  }
+}
 
-  function stopRingback() {
-    ringbackRef.current?.pause();
-    if (ringbackRef.current) ringbackRef.current.currentTime = 0;
+function stopRinging() {
+  try {
+    ringtoneSourceRef.current?.stop();
+  } catch {
+    // already stopped
   }
+  ringtoneSourceRef.current = null;
+  if ("vibrate" in navigator) navigator.vibrate(0);
+}
+
+async function startRingback() {
+  try {
+    stopRingback();
+    const ctx = getAudioCtx();
+    if (ctx.state === "suspended") await ctx.resume();
+    const buffer = await loadBuffer("/ringback.mp3", ringbackBufferRef);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.connect(ctx.destination);
+    source.start();
+    ringbackSourceRef.current = source;
+  } catch (err) {
+    console.error("Ringback playback failed:", err);
+  }
+}
+
+function stopRingback() {
+  try {
+    ringbackSourceRef.current?.stop();
+  } catch {
+    // already stopped
+  }
+  ringbackSourceRef.current = null;
+}
 
   function createPeerConnection() {
     if (pcRef.current) {
