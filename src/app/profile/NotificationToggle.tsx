@@ -22,19 +22,30 @@ export default function NotificationToggle() {
     setStatus(Notification.permission as any);
   }, []);
 
-  async function handleEnable() {
+    async function handleEnable() {
     const permission = await Notification.requestPermission();
     setStatus(permission as any);
 
     if (permission !== "granted") return;
 
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
-    });
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!),
+      });
 
-    await saveSubscription(subscription.toJSON() as any);
+      const result = await saveSubscription(subscription.toJSON() as any);
+
+      if (result?.error) {
+        alert("Subscription save failed: " + result.error);
+      } else {
+        alert("Subscribed successfully!");
+      }
+    } catch (err: any) {
+      alert("Notification setup failed: " + (err?.message || String(err)));
+      console.error("Full error:", err);
+    }
   }
 
   if (status === "unsupported") return null;
