@@ -93,10 +93,23 @@ export async function sendMessage(
 
   if (error) return { error: error.message };
 
+  // revalidatePath(`/messages/${friendId}`);
+  // sendPushToUser(friendId, "New message", content.slice(0, 100), `/messages/${user.id}`);
+  // return { success: true };
+
   revalidatePath(`/messages/${friendId}`);
-  sendPushToUser(friendId, "New message", content.slice(0, 100), `/messages/${user.id}`);
+  
+  // Await the push so Vercel doesn't kill the server before it finishes sending!
+  // Wrapped in a try/catch so if the notification fails, the message still sends successfully.
+  try {
+    await sendPushToUser(friendId, "New message", content.slice(0, 100), `/messages/${user.id}`);
+  } catch (err) {
+    console.error("Failed to send push notification:", err);
+  }
+
   return { success: true };
 }
+
 
 
 export async function sendImageMessage(friendId: string, imageUrl: string) {
