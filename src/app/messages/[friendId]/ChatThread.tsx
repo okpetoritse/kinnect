@@ -14,6 +14,7 @@ import {
   notifyIncomingCall,
   sendVideoNote,
   logCallMessage,
+  markChatActive
 } from "../actions";
 import {
   blockUser,
@@ -218,6 +219,15 @@ export default function ChatThread({
   function handleLongPressEnd() {
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
   }
+  // function handleLongPressEnd() {
+  //   if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+  // }
+
+    useEffect(() => {
+    markChatActive(friendId);
+    const interval = setInterval(() => markChatActive(friendId), 10000);
+    return () => clearInterval(interval);
+  }, [friendId]);
 
   useEffect(() => {
     markMessagesRead(friendId);
@@ -293,8 +303,19 @@ export default function ChatThread({
     };
   }, [currentUserId, friendId]);
 
+    const isFirstLoadRef = useRef(true);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isFirstLoadRef.current) {
+      bottomRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior });
+      isFirstLoadRef.current = false;
+      const settleTimer = setTimeout(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "instant" as ScrollBehavior });
+      }, 300);
+      return () => clearTimeout(settleTimer);
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages, friendIsTyping, uploading]);
 
   const enriched = useMemo(() => {
@@ -948,8 +969,8 @@ export default function ChatThread({
               </div>
             )}
             {friendIsTyping && (
-              <p className={styles.typingIndicator}>{friendName} is typing...</p>
-            )}
+  <p className={styles.typingIndicator}>typing...</p>
+)}
             <div ref={bottomRef} />
           </div>
 

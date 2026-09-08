@@ -94,14 +94,15 @@ export default function MessagesList({
               size={40}
             />
                       <div>
-              <div className={styles.name}>
-                {friend.full_name || "Unnamed"}
-                <FounderBadge number={friend.founding_number} />
-              </div>
-              <div className={styles.lastMessage}>
-                {friend.lastMessagePreview || (friend.username ? `@${friend.username}` : "No messages yet")}
-              </div>
-            </div>
+  <div className={styles.name}>
+    {friend.username ? `@${friend.username}` : friend.full_name || "Unnamed"}
+    <FounderBadge number={friend.founding_number} />
+  </div>
+  <div className={styles.lastMessage}>
+    {friend.lastMessagePreview || "No messages yet"}
+  </div>
+</div>
+            {/* </div> */}
 
             {unread > 0 && (
               <div className={styles.unreadBadge}>{unread}</div>

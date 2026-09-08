@@ -36,6 +36,17 @@ export async function getHomeData(userId: string) {
     });
   });
 
+    const { data: unreadRows } = await supabase
+    .from("messages")
+    .select("sender_id")
+    .eq("receiver_id", userId)
+    .is("read_at", null);
+
+  const unreadByFriend: Record<string, number> = {};
+  (unreadRows || []).forEach((m) => {
+    unreadByFriend[m.sender_id] = (unreadByFriend[m.sender_id] || 0) + 1;
+  });
+
   const friendIds = conversationPreviews.map((c) => c.friendId);
   const { data: friendProfiles } =
     friendIds.length > 0
@@ -51,6 +62,7 @@ export async function getHomeData(userId: string) {
       friendProfiles?.find((p) => p.id === c.friendId)?.full_name || "Unknown",
     avatarUrl: friendProfiles?.find((p) => p.id === c.friendId)?.avatar_url || null,
     foundingNumber: friendProfiles?.find((p) => p.id === c.friendId)?.founding_number || null,
+    unreadCount: unreadByFriend[c.friendId] || 0,
   }));
 
   // Communities the user belongs to

@@ -59,7 +59,6 @@ export async function sendMessage(
     return { error: "You can't message this user" };
   }
 
-
   const { data: friendship } = await supabase
     .from("friend_requests")
     .select("id")
@@ -93,18 +92,22 @@ export async function sendMessage(
 
   if (error) return { error: error.message };
 
-  // revalidatePath(`/messages/${friendId}`);
-  // sendPushToUser(friendId, "New message", content.slice(0, 100), `/messages/${user.id}`);
-  // return { success: true };
-
   revalidatePath(`/messages/${friendId}`);
-  
-  // Await the push so Vercel doesn't kill the server before it finishes sending!
-  // Wrapped in a try/catch so if the notification fails, the message still sends successfully.
-  try {
-    await sendPushToUser(friendId, "New message", content.slice(0, 100), `/messages/${user.id}`);
-  } catch (err) {
-    console.error("Failed to send push notification:", err);
+
+  const { data: activeViewers } = await supabase
+    .from("active_chat_views")
+    .select("user_id")
+    .eq("chat_with_user_id", friendId)
+    .eq("user_id", friendId)
+    .gte("last_seen_at", new Date(Date.now() - 15000).toISOString())
+    .maybeSingle();
+
+  if (!activeViewers) {
+    try {
+      await sendPushToUser(friendId, "New message", content.slice(0, 100), `/messages/${user.id}`);
+    } catch (err) {
+      console.error("Failed to send push notification:", err);
+    }
   }
 
   return { success: true };
@@ -378,9 +381,15 @@ export async function getMessagesFriendsPaginated(cursor?: string) {
     lastMessageTime: lastMessageByFriend[f.id]?.time || null,
   }));
 
+  const sortedFriends = [...friendsWithPreview].sort((a: any, b: any) => {
+    const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+    const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+    return timeB - timeA;
+  });
+
   const nextCursor = data.length === PAGE_SIZE ? data[data.length - 1].created_at : null;
 
-  return { friends: friendsWithPreview, nextCursor };
+  return { friends: sortedFriends, nextCursor };
 }
 
 export async function sendPing(friendId: string, pingLabel: string) {
@@ -494,4 +503,21 @@ export async function logCallMessage(
   if (error) return { error: error.message };
   revalidatePath(`/messages/${friendId}`);
   return { success: true };
+}
+
+export async function markChatActive(friendId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase.from("active_chat_views").upsert(
+    {
+      user_id: user.id,
+      chat_with_user_id: friendId,
+      last_seen_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,chat_with_user_id" }
+  );
 }

@@ -46,6 +46,15 @@ export default function BottomNav() {
     };
   }, [pathname]);
 
+  // Check if the user is inside a specific DM thread
+  // This matches paths like /messages/123 or /messages/uuid but NOT the main /messages list
+  const isInsideChatThread = pathname.match(/^\/messages\/[a-zA-Z0-9-]+$/);
+
+  // Hide the navbar if inside a DM (must be placed AFTER all hooks like useState/useEffect)
+  if (isInsideChatThread) {
+    return null;
+  }
+
   return (
     <nav className={styles.nav}>
       {TABS.map(({ href, label, Icon }) => {

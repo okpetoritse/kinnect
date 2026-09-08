@@ -101,12 +101,12 @@ export default function FriendsList({
               </button>
               <div>
                 <div className={styles.name}>
-  {friend.full_name || "Unnamed"}
+  {friend.username ? `@${friend.username}` : friend.full_name || "Unnamed"}
   <FounderBadge number={friend.founding_number} />
 </div>
-                <div className={styles.email}>
+                {/* <div className={styles.email}>
                   {friend.username ? `@${friend.username}` : "No username set"}
-                </div>
+                </div> */}
               </div>
             </div>
           </div>
