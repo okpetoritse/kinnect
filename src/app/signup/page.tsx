@@ -81,19 +81,7 @@ export default async function SignupPage({
 
           <button className={styles.submit} type="submit">
             Sign up
-          </button><label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--text-secondary)", marginBottom: 16 }}>
-            <input type="checkbox" name="agreeTerms" required style={{ marginTop: 2 }} />
-            <span>
-              I agree to the{" "}
-              <a href="/terms" target="_blank" style={{ color: "var(--coral)" }}>
-                Terms of Service
-              </a>{" "}
-              and{" "}
-              <a href="/privacy" target="_blank" style={{ color: "var(--coral)" }}>
-                Privacy Policy
-              </a>
-            </span>
-          </label>
+          </button>
 
           
         </form>
