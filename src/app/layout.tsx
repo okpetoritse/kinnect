@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import AppChrome from "@/components/AppChrome";
+import DebugConsole from "@/components/DebugConsole";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -39,6 +40,7 @@ export default function RootLayout({
       <body className={`${jakarta.variable} ${inter.variable}`}>
         <div className="app-shell">
           <AppChrome>{children}</AppChrome>
+            <DebugConsole />
         </div>
       </body>
     </html>
