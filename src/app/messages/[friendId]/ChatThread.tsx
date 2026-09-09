@@ -213,16 +213,17 @@ export default function ChatThread({
     setRemoteVideoEl,
   } = useDMCall(friendId, currentUserId, "You", handleCallEnded);
 
-  function handleLongPressStart(msgId: string) {
-    longPressTimerRef.current = setTimeout(() => setReactionPickerFor(msgId), 450);
+    function handleLongPressStart(msgId: string) {
+    console.log("[LONGPRESS] start");
+    longPressTimerRef.current = setTimeout(() => {
+      console.log("[LONGPRESS] FIRED — should show menu now");
+      setReactionPickerFor(msgId);
+    }, 450);
   }
   function handleLongPressEnd() {
+    console.log("[LONGPRESS] end");
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
   }
-  // function handleLongPressEnd() {
-  //   if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-  // }
-
     useEffect(() => {
     markChatActive(friendId);
     const interval = setInterval(() => markChatActive(friendId), 10000);
