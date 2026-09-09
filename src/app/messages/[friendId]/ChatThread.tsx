@@ -214,14 +214,11 @@ export default function ChatThread({
   } = useDMCall(friendId, currentUserId, "You", handleCallEnded);
 
     function handleLongPressStart(msgId: string) {
-    console.log("[LONGPRESS] start");
     longPressTimerRef.current = setTimeout(() => {
-      console.log("[LONGPRESS] FIRED — should show menu now");
       setReactionPickerFor(msgId);
     }, 450);
   }
   function handleLongPressEnd() {
-    console.log("[LONGPRESS] end");
     if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
   }
     useEffect(() => {
@@ -808,7 +805,7 @@ export default function ChatThread({
                 const isMine = msg.sender_id === currentUserId;
 
                 return (
-                  <div key={msg.id}>
+                  <div key={msg.id} className={styles.messageWrapper}>
                     {msg.showDateDivider && (
                       <div className={styles.dateDivider}>
                         {formatDateDivider(msg.created_at)}

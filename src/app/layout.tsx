@@ -40,7 +40,6 @@ export default function RootLayout({
       <body className={`${jakarta.variable} ${inter.variable}`}>
         <div className="app-shell">
           <AppChrome>{children}</AppChrome>
-            <DebugConsole />
         </div>
       </body>
     </html>
