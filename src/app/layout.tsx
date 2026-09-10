@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import "./globals.css";
 import AppChrome from "@/components/AppChrome";
-import DebugConsole from "@/components/DebugConsole";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
