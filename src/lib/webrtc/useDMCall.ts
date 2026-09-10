@@ -43,6 +43,9 @@ export function useDMCall(
   const [isVideoCall, setIsVideoCall] = useState(false);
   const [callError, setCallError] = useState<string | null>(null);
 
+  const [speakerOn, setSpeakerOn] = useState(true);
+
+
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
@@ -233,6 +236,8 @@ function stopRingback() {
     if (durationTimerRef.current) clearInterval(durationTimerRef.current);
     durationTimerRef.current = null;
   }
+
+  
 
   useEffect(() => {
     const supabase = createClient();
@@ -451,6 +456,20 @@ function stopRingback() {
     setMuted(newMuted);
   }
 
+
+   function toggleSpeaker() {
+    if (remoteAudioRef.current && "setSinkId" in remoteAudioRef.current) {
+      const newState = !speakerOn;
+      (remoteAudioRef.current as any)
+        .setSinkId(newState ? "default" : "communications")
+        .catch(() => {});
+      setSpeakerOn(newState);
+    } else {
+      setSpeakerOn((prev) => !prev);
+    }
+  }
+
+
   useEffect(() => {
     function handleVisibilityChange() {
       if (document.hidden && callStateRef.current === "connected") {
@@ -479,6 +498,8 @@ function stopRingback() {
     duration,
     isVideoCall,
     callError,
+    speakerOn,
+    toggleSpeaker,
     startCall,
     acceptCall,
     declineCall,

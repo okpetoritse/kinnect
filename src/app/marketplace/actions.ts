@@ -47,12 +47,15 @@ export async function getListings(options?: {
   }
 
   const now = new Date();
-  const isActivePromo = (l: any) =>
-    l.is_promoted && l.promoted_until && new Date(l.promoted_until) > now;
+const isActivePromo = (l: any) => {
+  const withinTime = l.is_promoted && l.promoted_until && new Date(l.promoted_until) > now;
+  const withinRegion = !l.promo_region || l.promo_region === options?.country;
+  return withinTime && withinRegion;
+};
 
-  const promoted = data.filter(isActivePromo);
-  const rest = data.filter((l) => !isActivePromo(l));
-  const listings = [...promoted, ...rest];
+const promoted = data.filter(isActivePromo);
+const rest = data.filter((l) => !isActivePromo(l));
+const listings = [...promoted, ...rest];
 
   const nextCursor =
     data.length === PAGE_SIZE ? data[data.length - 1].created_at : null;

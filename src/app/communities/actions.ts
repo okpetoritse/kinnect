@@ -83,13 +83,16 @@ export async function joinCommunity(communityId: string) {
   return { success: true };
 }
 
-export async function getCommunityPosts(communityId: string) {
+export async function getCommunityPosts(
+  communityId: string,
+  options?: { country?: string }
+) {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("community_posts")
     .select(
-      "id, content, image_url, video_url, is_promoted, promoted_until, created_at, author:profiles!community_posts_author_id_fkey(id, full_name)"
+      "id, content, image_url, video_url, is_promoted, promoted_until, promo_region, created_at, author:profiles!community_posts_author_id_fkey(id, full_name)"
     )
     .eq("community_id", communityId)
     .order("created_at", { ascending: false });
@@ -105,10 +108,14 @@ export async function getCommunityPosts(communityId: string) {
     author: Array.isArray(p.author) ? p.author[0] : p.author,
   }));
 
-  const activePromoted = normalized.filter(
-    (p) => p.is_promoted && p.promoted_until && new Date(p.promoted_until) > now
-  );
-  const rest = normalized.filter((p) => !(p.is_promoted && p.promoted_until && new Date(p.promoted_until) > now));
+  const isActivePromo = (p: any) => {
+    const withinTime = p.is_promoted && p.promoted_until && new Date(p.promoted_until) > now;
+    const withinRegion = !p.promo_region || p.promo_region === options?.country;
+    return withinTime && withinRegion;
+  };
+
+  const activePromoted = normalized.filter(isActivePromo);
+  const rest = normalized.filter((p) => !isActivePromo(p));
 
   return [...activePromoted, ...rest];
 }

@@ -251,25 +251,31 @@ export async function getFriendsReelStatus() {
   return status;
 }
 
-export async function getActivePromotions() {
+export async function getActivePromotions(options?: { country?: string }) {
   const supabase = await createClient();
   const now = new Date().toISOString();
 
   const { data: posts } = await supabase
     .from("community_posts")
-    .select("id, content, image_url, community_id, promoted_until")
+    .select("id, content, image_url, community_id, promoted_until, promo_region")
     .eq("is_promoted", true)
     .gt("promoted_until", now)
     .order("promoted_until", { ascending: true });
 
   const { data: listings } = await supabase
     .from("marketplace_listings")
-    .select("id, title, image_urls, promoted_until")
+    .select("id, title, image_urls, promoted_until, promo_region")
     .eq("is_promoted", true)
     .gt("promoted_until", now)
     .order("promoted_until", { ascending: true });
 
-  const postSlides = (posts || []).map((p) => ({
+  const isMatchingRegion = (item: any) =>
+    !item.promo_region || item.promo_region === options?.country;
+
+  const validPosts = (posts || []).filter(isMatchingRegion);
+  const validListings = (listings || []).filter(isMatchingRegion);
+
+  const postSlides = validPosts.map((p) => ({
     type: "post" as const,
     id: p.id,
     href: `/communities/${p.community_id}`,
@@ -277,7 +283,7 @@ export async function getActivePromotions() {
     imageUrl: p.image_url,
   }));
 
-  const listingSlides = (listings || []).map((l) => ({
+  const listingSlides = validListings.map((l) => ({
     type: "listing" as const,
     id: l.id,
     href: `/marketplace/${l.id}`,

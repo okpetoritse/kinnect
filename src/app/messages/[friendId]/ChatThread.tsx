@@ -46,6 +46,8 @@ import {
   PhoneOff,
   CornerUpLeft,
   BookHeart,
+  Volume2, // <-- ADD
+  VolumeX, // <-- ADD
 } from "lucide-react";
 
 type Message = {
@@ -204,6 +206,8 @@ export default function ChatThread({
     muted: callMuted,
     duration: callDuration,
     isVideoCall,
+    speakerOn,      // <-- ADD
+    toggleSpeaker,  // <-- ADD
     startCall,
     acceptCall,
     declineCall,
@@ -1184,26 +1188,28 @@ export default function ChatThread({
       )}
 
       {callState !== "idle" && (
-        <div className={styles.callOverlay}>
-          {isVideoCall && callState === "connected" ? (
-            <div className={styles.videoStage}>
-              <video ref={setRemoteVideoEl} className={styles.remoteVideo} autoPlay playsInline />
-              <video ref={setLocalVideoEl} className={styles.localVideo} autoPlay playsInline muted />
-            </div>
-          ) : (
-            <div className={styles.callAvatarLarge}>
-              <Avatar name={friendName} avatarUrl={friendAvatarUrl} size={96} />
-            </div>
-          )}
-          <div className={styles.callName}>
-            {callState === "ringing" ? callerName : friendName}
-          </div>
-          <div className={styles.callStatus}>
-            
-            {callState === "calling" && "Calling..."}
-            {callState === "ringing" && "Incoming call"}
-            {callState === "connected" && formatCallDuration(callDuration)}
-          </div>
+  <div className={styles.callOverlay}>
+    {isVideoCall && callState === "connected" ? (
+      <div className={styles.videoStage}>
+        <video ref={setRemoteVideoEl} className={styles.remoteVideo} autoPlay playsInline />
+        <video ref={setLocalVideoEl} className={styles.localVideo} autoPlay playsInline muted />
+      </div>
+    ) : (
+      <div className={styles.callAvatarLarge}>
+        <Avatar name={friendName} avatarUrl={friendAvatarUrl} size={96} />
+      </div>
+    )}
+
+    {/* 👇 UPDATE THIS PORTION HERE */}
+    <div className={styles.callName}>
+      {callState === "ringing" ? callerName : friendName}
+    </div>
+    {isVideoCall && <div className={styles.callTypeLabel}>📹 Video Call</div>}
+    <div className={styles.callStatus}>
+      {callState === "calling" && "Calling..."}
+      {callState === "ringing" && "Incoming call"}
+      {callState === "connected" && formatCallDuration(callDuration)}
+    </div>
 
           {callError && (
   <div
@@ -1234,20 +1240,25 @@ export default function ChatThread({
               </button>
             </div>
           ) : (
-            <div className={styles.callControlsRow}>
+                        <div className={styles.callControlsRowNew}>
               <button
-                className={`${styles.callControlBtn} ${
-                  callMuted ? styles.callControlBtnMuted : ""
+                className={`${styles.callControlBtnNew} ${
+                  callMuted ? styles.callControlBtnNewActive : ""
                 }`}
                 onClick={toggleCallMute}
               >
-                {callMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                {callMuted ? <MicOff size={22} /> : <Mic size={22} />}
+              </button>
+              <button className={styles.callEndBtnNew} onClick={endCall}>
+                <PhoneOff size={26} />
               </button>
               <button
-                className={`${styles.callActionBtn} ${styles.callDeclineBtn}`}
-                onClick={endCall}
+                className={`${styles.callControlBtnNew} ${
+                  !speakerOn ? styles.callControlBtnNewActive : ""
+                }`}
+                onClick={toggleSpeaker}
               >
-                <PhoneOff size={22} />
+                {speakerOn ? <Volume2 size={22} /> : <VolumeX size={22} />}
               </button>
             </div>
           )}
