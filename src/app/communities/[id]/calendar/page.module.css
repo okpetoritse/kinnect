@@ -136,3 +136,14 @@
   text-align: center;
   padding: 40px 0;
 }
+
+.pastToggle {
+  width: 100%;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 16px;
+}

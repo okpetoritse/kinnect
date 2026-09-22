@@ -251,7 +251,7 @@ export async function getFriendsReelStatus() {
   return status;
 }
 
-export async function getActivePromotions(options?: { country?: string }) {
+export async function getActivePromotions(viewerCountry?: string) {
   const supabase = await createClient();
   const now = new Date().toISOString();
 
@@ -269,30 +269,46 @@ export async function getActivePromotions(options?: { country?: string }) {
     .gt("promoted_until", now)
     .order("promoted_until", { ascending: true });
 
-  const isMatchingRegion = (item: any) =>
-    !item.promo_region || item.promo_region === options?.country;
+  const { data: ads } = await supabase
+    .from("sponsored_ads")
+    .select("id, title, image_url, video_url, link_url, sponsor_name, ends_at, promo_region")
+    .eq("is_active", true)
+    .gt("ends_at", now)
+    .order("ends_at", { ascending: true });
 
-  const validPosts = (posts || []).filter(isMatchingRegion);
-  const validListings = (listings || []).filter(isMatchingRegion);
+  const matchesRegion = (region: string | null) => !region || region === viewerCountry;
 
-  const postSlides = validPosts.map((p) => ({
-    type: "post" as const,
-    id: p.id,
-    href: `/communities/${p.community_id}`,
-    text: p.content || "Check out this post",
-    imageUrl: p.image_url,
-  }));
+  const postSlides = (posts || [])
+    .filter((p) => matchesRegion(p.promo_region))
+    .map((p) => ({
+      type: "post" as const,
+      id: p.id,
+      href: `/communities/${p.community_id}`,
+      text: p.content || "Check out this post",
+      imageUrl: p.image_url,
+    }));
 
-  const listingSlides = validListings.map((l) => ({
-    type: "listing" as const,
-    id: l.id,
-    href: `/marketplace/${l.id}`,
-    text: l.title,
-    imageUrl: l.image_urls?.[0] || null,
-  }));
+  const listingSlides = (listings || [])
+    .filter((l) => matchesRegion(l.promo_region))
+    .map((l) => ({
+      type: "listing" as const,
+      id: l.id,
+      href: `/marketplace/${l.id}`,
+      text: l.title,
+      imageUrl: l.image_urls?.[0] || null,
+    }));
 
-  // Soonest-expiring promotions surface first, capped so Home never gets flooded
-  return [...postSlides, ...listingSlides].slice(0, 5);
+  const adSlides = (ads || [])
+    .filter((a) => matchesRegion(a.promo_region))
+    .map((a) => ({
+      type: "ad" as const,
+      id: a.id,
+      href: a.link_url || "#",
+      text: a.sponsor_name ? `${a.title} · ${a.sponsor_name}` : a.title,
+      imageUrl: a.image_url,
+    }));
+
+  return [...postSlides, ...listingSlides, ...adSlides].slice(0, 6);
 }
 
 export async function sendReelComment(entryId: string, message: string) {
@@ -330,4 +346,19 @@ export async function sendReelComment(entryId: string, message: string) {
 
   if (error) return { error: error.message };
   return { success: true };
+}
+
+
+export async function getActiveAds(viewerCountry?: string) {
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+
+  const { data } = await supabase
+    .from("sponsored_ads")
+    .select("*")
+    .eq("is_active", true)
+    .lte("starts_at", now)
+    .gt("ends_at", now);
+
+  return (data || []).filter((ad) => !ad.promo_region || ad.promo_region === viewerCountry);
 }

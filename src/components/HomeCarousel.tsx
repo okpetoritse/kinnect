@@ -35,11 +35,13 @@ export default function HomeCarousel({
   friendsReels,
   currentUserId,
   hasCommunities,
+  myCountry,
 }: {
   firstName: string;
   friendsReels: FriendReel[];
   currentUserId: string;
   hasCommunities: boolean;
+  myCountry: string;
 }) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
@@ -54,9 +56,9 @@ export default function HomeCarousel({
 
   const [promos, setPromos] = useState<{ href: string; text: string; imageUrl: string | null }[]>([]);
 
-  useEffect(() => {
-    getActivePromotions().then(setPromos);
-  }, []);
+   useEffect(() => {
+    getActivePromotions(myCountry).then(setPromos);
+  }, [myCountry]);
 
 type Slide =
   | { type: "greeting" }
@@ -101,8 +103,14 @@ type Slide =
 });
     } else if (slide.type === "cta") {
       router.push("/communities");
-    } else if (slide.type === "promo") {
-      router.push(slide.href);
+        } else if (slide.type === "promo") {
+      if (slide.href && slide.href !== "#") {
+        if (slide.href.startsWith("http")) {
+          window.open(slide.href, "_blank");
+        } else {
+          router.push(slide.href);
+        }
+      }
     }
   }
 

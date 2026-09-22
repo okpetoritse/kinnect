@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendPushToUser } from "@/lib/notifications/sendPush";
 
+
 export async function createCommunity(formData: FormData) {
   const supabase = await createClient();
   const {
@@ -321,6 +322,22 @@ export async function createEvent(formData: FormData) {
   if (error) {
     redirect(`/communities/${communityId}/calendar/new?error=${encodeURIComponent(error.message)}`);
   }
+
+  // Fetch community members (excluding the event creator) and send push notifications
+  const { data: members } = await supabase
+    .from("community_members")
+    .select("user_id")
+    .eq("community_id", communityId)
+    .neq("user_id", user!.id);
+
+  (members || []).forEach((m) => {
+    sendPushToUser(
+      m.user_id,
+      "New event",
+      `${title} was just scheduled`,
+      `/communities/${communityId}/calendar`
+    );
+  });
 
   revalidatePath(`/communities/${communityId}/calendar`);
   redirect(`/communities/${communityId}/calendar`);

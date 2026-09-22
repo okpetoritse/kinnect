@@ -17,18 +17,25 @@ export default async function HomePage() {
 
   if (!user) redirect("/login");
 
-  const { conversations, communities, events } = await getHomeData(user.id);
+const { data: profile } = await supabase
+  .from("profiles")
+  .select("country")
+  .eq("id", user.id)
+  .single();
+
+const { conversations, communities, events } = await getHomeData(user.id);
   const firstName = (user.user_metadata?.full_name || "there").split(" ")[0];
   const friendsReels = await getFriendsWithActiveReels();
 
   return (
     <main className={styles.wrapper}>
-      <HomeCarousel
-        firstName={firstName}
-        friendsReels={friendsReels as any}
-        currentUserId={user.id}
-        hasCommunities={communities.length > 0}
-      />
+    <HomeCarousel
+  firstName={firstName}
+  friendsReels={friendsReels as any}
+  currentUserId={user.id}
+  hasCommunities={communities.length > 0}
+  myCountry={profile?.country || ""}
+/>
 
       <div className={styles.section}>
         <div className={styles.sectionHeader}>

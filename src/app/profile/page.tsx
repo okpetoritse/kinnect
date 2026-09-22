@@ -11,6 +11,7 @@ import DeleteAccountButton from "./DeleteAccountButton";
 import NotificationToggle from "./NotificationToggle";
 import FounderBadge from "@/components/FounderBadge";
 
+
 export default async function ProfilePage() {
   const supabase = await createClient();
   const {
@@ -19,7 +20,7 @@ export default async function ProfilePage() {
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
+    const { data: profile } = await supabase
     .from("profiles")
     .select("full_name, avatar_url, username, country, founding_number")
     .eq("id", user.id)

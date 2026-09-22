@@ -1,5 +1,11 @@
 import PromotionPanel from "./PromotionPanel";
+import CreateAdForm from "./CreateAdForm";
 
 export default function PromotionsAdminPage() {
-  return <PromotionPanel />;
+  return (
+    <div>
+      <CreateAdForm />
+      <PromotionPanel />
+    </div>
+  );
 }

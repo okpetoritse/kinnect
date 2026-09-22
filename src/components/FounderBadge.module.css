@@ -4,9 +4,10 @@
   gap: 3px;
   font-size: 10px;
   font-weight: 700;
-  color: var(--amber);
-  background: var(--amber-tint);
-  padding: 2px 7px;
+  color: white;
+  background: linear-gradient(135deg, var(--amber), var(--coral));
+  padding: 2px 8px 2px 6px;
   border-radius: var(--radius-pill);
   margin-left: 6px;
+  vertical-align: middle;
 }

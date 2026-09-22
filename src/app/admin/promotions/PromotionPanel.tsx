@@ -21,8 +21,8 @@ export default function PromotionPanel() {
       setResults([]);
       return;
     }
-    const { posts, listings } = await searchPromotable(q);
-    setResults([...posts, ...listings]);
+    const { posts, listings, ads } = await searchPromotable(q);
+    setResults([...posts, ...listings, ...ads]);
   }
 
   function updateConfig(key: string, field: "days" | "region", value: any) {
@@ -32,11 +32,12 @@ export default function PromotionPanel() {
     }));
   }
 
-  async function handlePromote(item: any) {
+    async function handlePromote(item: any) {
     const key = `${item.type}-${item.id}`;
     setBusy(key);
     const cfg = config[key] || { days: 7, region: "" };
-    await setPromotion(item.type, item.id, cfg.days, cfg.region || null);
+    const result = await setPromotion(item.type, item.id, cfg.days, cfg.region || null);
+    if (result?.error) alert("Failed: " + result.error);
     await handleSearch(query);
     setBusy(null);
   }
@@ -44,7 +45,8 @@ export default function PromotionPanel() {
   async function handleRemove(item: any) {
     const key = `${item.type}-${item.id}`;
     setBusy(key);
-    await removePromotion(item.type, item.id);
+    const result = await removePromotion(item.type, item.id);
+    if (result?.error) alert("Failed: " + result.error);
     await handleSearch(query);
     setBusy(null);
   }
@@ -70,6 +72,21 @@ export default function PromotionPanel() {
           <div key={key} className={styles.card}>
             <div className={styles.cardType}>{item.type}</div>
             <div className={styles.cardTitle}>{item.title || item.content}</div>
+
+                        {item.image_url && (
+              <img
+                src={item.image_url}
+                style={{ width: "100%", borderRadius: 8, marginBottom: 8, maxHeight: 140, objectFit: "cover" }}
+                alt=""
+              />
+            )}
+            {item.video_url && (
+              <video
+                src={item.video_url}
+                controls
+                style={{ width: "100%", borderRadius: 8, marginBottom: 8, maxHeight: 140 }}
+              />
+            )}
 
             {isActive && (
               <div className={styles.activeStatus}>
