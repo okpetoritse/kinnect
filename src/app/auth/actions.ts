@@ -20,7 +20,10 @@ export async function signup(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+    const friendlyMessage = error.message.includes("ACCOUNT_EXISTS")
+      ? "An account with this email already exists. Please sign in instead."
+      : error.message;
+    redirect(`/signup?error=${encodeURIComponent(friendlyMessage)}`);
   }
 
   redirect("/signup?check_email=true");
