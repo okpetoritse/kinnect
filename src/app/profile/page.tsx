@@ -10,6 +10,7 @@ import CountryPicker from "./CountryPicker";
 import DeleteAccountButton from "./DeleteAccountButton";
 import NotificationToggle from "./NotificationToggle";
 import FounderBadge from "@/components/FounderBadge";
+import { ensureFoundingNumber } from "@/lib/founding/ensureFoundingNumber";
 
 
 export default async function ProfilePage() {
@@ -19,6 +20,8 @@ export default async function ProfilePage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+    await ensureFoundingNumber(supabase, user.id);
 
     const { data: profile } = await supabase
     .from("profiles")

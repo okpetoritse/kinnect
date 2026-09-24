@@ -8,6 +8,7 @@ import HomeCarousel from "@/components/HomeCarousel";
 import { getFriendsWithActiveReels } from "@/app/reels/actions";
 import Avatar from "@/components/Avatar";
 import FounderBadge from "@/components/FounderBadge";
+import { ensureFoundingNumber } from "@/lib/founding/ensureFoundingNumber";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -16,6 +17,8 @@ export default async function HomePage() {
   } = await supabase.auth.getUser();
 
   if (!user) redirect("/login");
+
+    await ensureFoundingNumber(supabase, user.id);
 
 const { data: profile } = await supabase
   .from("profiles")
@@ -58,9 +61,9 @@ const { conversations, communities, events } = await getHomeData(user.id);
                            
               <div className={styles.conversationBody}>
                 <div className={styles.conversationName}>
-                  {c.name}
-                  <FounderBadge number={c.foundingNumber} />
-                </div>
+  {c.username ? `@${c.username}` : c.name}
+  <FounderBadge number={c.foundingNumber} />
+</div>
                 <div className={styles.conversationPreview}>
                   {c.lastMessage}
                 </div>

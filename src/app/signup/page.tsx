@@ -1,4 +1,3 @@
-import { signup } from "@/app/auth/actions";
 import styles from "@/app/auth/auth.module.css";
 import Link from "next/link";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
@@ -6,7 +5,7 @@ import GoogleSignInButton from "@/components/GoogleSignInButton";
 export default async function SignupPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; check_email?: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const params = await searchParams;
 
@@ -18,79 +17,10 @@ export default async function SignupPage({
         <p className={styles.subtitle}>Join Kinnect</p>
 
         {params.error && <div className={styles.error}>{params.error}</div>}
-        {params.check_email && (
-          <div className={styles.success}>
-            Check your email to confirm your account.
-          </div>
-        )}
 
-        <form action={signup}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="fullName">
-              Full name
-            </label>
-            <input
-              className={styles.input}
-              id="fullName"
-              name="fullName"
-              type="text"
-              required
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="email">
-              Email
-            </label>
-            <input
-              className={styles.input}
-              id="email"
-              name="email"
-              type="email"
-              required
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="password">
-              Password
-            </label>
-            <input
-              className={styles.input}
-              id="password"
-              name="password"
-              type="password"
-              minLength={6}
-              required
-            />
-          </div>
-
-          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 12, color: "var(--text-secondary)", marginBottom: 16 }}>
-            <input type="checkbox" name="agreeTerms" required style={{ marginTop: 2 }} />
-            <span>
-              I agree to the{" "}
-              <a href="/terms" target="_blank" style={{ color: "var(--coral)" }}>
-                Terms of Service
-              </a>{" "}
-              and{" "}
-              <a href="/privacy" target="_blank" style={{ color: "var(--coral)" }}>
-                Privacy Policy
-              </a>
-            </span>
-          </label>
-
-          <button className={styles.submit} type="submit">
-            Sign up
-          </button>
-
-          
-        </form>
-
-        <div className={styles.divider}>
-          <span className={styles.dividerLine} />
-          or
-          <span className={styles.dividerLine} />
-        </div>
+        <p style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center", margin: "16px 0" }}>
+          Sign up takes one tap — Kinnect uses Google to keep your account secure.
+        </p>
 
         <GoogleSignInButton />
 

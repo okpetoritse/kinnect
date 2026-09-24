@@ -176,6 +176,7 @@ export default function ChatThread({
   const burstChunksRef = useRef<Blob[]>([]);
   const recordingStartRef = useRef<number>(0);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const recordingFailsafeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const onlineIds = usePresence(currentUserId);
   const friendIsOnline = onlineIds.has(friendId);
@@ -252,6 +253,14 @@ export default function ChatThread({
     }
     loadReactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+    useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -640,6 +649,12 @@ export default function ChatThread({
   }
 
   async function handleStartRecording() {
+    // Guard: never start a second recording while one is already active —
+    // this is what leaves orphaned mic streams locking the microphone.
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -652,6 +667,11 @@ export default function ChatThread({
 
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        if (recordingFailsafeRef.current) {
+          clearTimeout(recordingFailsafeRef.current);
+          recordingFailsafeRef.current = null;
+        }
+
         const durationSeconds = Math.round(
           (Date.now() - recordingStartRef.current) / 1000
         );
@@ -698,13 +718,30 @@ export default function ChatThread({
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
       setRecording(true);
+
+      // Hard failsafe: if a touch-end event is ever dropped (a real, known
+      // mobile browser flakiness), this guarantees the mic is released
+      // within 2 minutes no matter what, instead of staying locked forever.
+      recordingFailsafeRef.current = setTimeout(() => {
+        if (mediaRecorderRef.current?.state === "recording") {
+          mediaRecorderRef.current.stop();
+          setRecording(false);
+        }
+      }, 120000);
     } catch (err) {
       console.error("Microphone permission denied or unavailable", err);
+      setRecording(false);
     }
   }
 
-  function handleStopRecording() {
-    mediaRecorderRef.current?.stop();
+    function handleStopRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+    }
+    if (recordingFailsafeRef.current) {
+      clearTimeout(recordingFailsafeRef.current);
+      recordingFailsafeRef.current = null;
+    }
     setRecording(false);
   }
 

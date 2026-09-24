@@ -41,13 +41,10 @@ export default function MembersList({ members }: { members: Member[] }) {
               avatarUrl={m.profile?.avatar_url}
               size={40}
             />
-            <div>
+                        <div>
               <div className={styles.memberName}>
-  {m.profile?.full_name || "Unnamed"}
-  <FounderBadge number={m.profile?.founding_number} />
-</div>
-              <div className={styles.memberEmail}>
-                {m.profile?.username ? `@${m.profile.username}` : "No username set"}
+                {m.profile?.username ? `@${m.profile.username}` : m.profile?.full_name || "Unnamed"}
+                <FounderBadge number={m.profile?.founding_number} />
               </div>
             </div>
 
