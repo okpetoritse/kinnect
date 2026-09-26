@@ -7,7 +7,7 @@ import InstallPrompt from "./InstallPrompt";
 import NotificationPrompt from "./NotificationPrompt";
 
 
-const HIDE_NAV_ON = ["/login", "/signup", "/"];
+const HIDE_NAV_ON = ["/login", "/signup", "/", "/support"];
 
 function isChatThreadPath(pathname: string) {
   return /^\/messages\/[a-zA-Z0-9-]+$/.test(pathname);
