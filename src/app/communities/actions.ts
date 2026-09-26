@@ -22,6 +22,9 @@ export async function createCommunity(formData: FormData) {
   const goalMetricLabel = (formData.get("goalMetricLabel") as string)?.trim();
   const goalTarget = formData.get("goalTarget") as string;
   const goalDeadline = formData.get("goalDeadline") as string;
+  
+  // NEW: Capture the goalCategory from the form
+  const goalCategory = (formData.get("goalCategory") as string) || null;
 
   if (!name) {
     redirect(`/communities/new?error=${encodeURIComponent("Community name is required")}`);
@@ -40,6 +43,8 @@ export async function createCommunity(formData: FormData) {
       goal_metric_label: isGoal ? goalMetricLabel : null,
       goal_target: isGoal ? Number(goalTarget) : null,
       goal_deadline: isGoal && goalDeadline ? goalDeadline : null,
+      // NEW: Store the goal_category in the database
+      goal_category: isGoal ? goalCategory : null,
     })
     .select()
     .single();
@@ -778,7 +783,7 @@ export async function getCommunityMembersWithFriendStatus(communityId: string) {
 
 export async function logGoalProgress(
   communityId: string,
-  value: number,
+  incrementValue: number,
   note: string,
   mediaItems?: { url: string; type: "image" | "video" }[]
 ) {
@@ -789,12 +794,27 @@ export async function logGoalProgress(
 
   if (!user) return { error: "Not logged in" };
 
+  // Pull this user's most recent cumulative total in this community, so
+  // every new log adds on top of it instead of overwriting from scratch.
+  const { data: lastEntry } = await supabase
+    .from("community_goal_progress")
+    .select("value")
+    .eq("community_id", communityId)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const previousTotal = lastEntry?.value || 0;
+  const newTotal = previousTotal + incrementValue;
+
   const { data: entry, error } = await supabase
     .from("community_goal_progress")
     .insert({
       community_id: communityId,
       user_id: user.id,
-      value,
+      value: newTotal,
+      increment_value: incrementValue,
       note: note || null,
     })
     .select("id")
@@ -820,10 +840,10 @@ export async function logGoalProgress(
     .single();
 
   const target = community?.goal_target || 0;
-  const newPercent = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
+  const newPercent = target > 0 ? Math.min(100, Math.round((newTotal / target) * 100)) : 0;
 
   revalidatePath(`/communities/${communityId}/progress`);
-  return { success: true, newPercent };
+  return { success: true, newPercent, newTotal };
 }
 
 const MILESTONE_THRESHOLDS = [25, 50, 75, 100];
@@ -1037,4 +1057,61 @@ export async function getCommunitiesList(cursor?: string, query?: string) {
       : null;
 
   return { communities, memberCounts, nextCursor };
+}
+
+export async function getRecentCommunityActivity(communityId: string) {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("community_goal_progress")
+    .select(
+      "id, user_id, value, increment_value, note, created_at, profiles!community_goal_progress_user_id_fkey(id, full_name, avatar_url)"
+    )
+    .eq("community_id", communityId)
+    .order("created_at", { ascending: false })
+    .limit(15);
+
+  return (data || []).map((entry: any) => ({
+    ...entry,
+    profile: Array.isArray(entry.profiles) ? entry.profiles[0] : entry.profiles,
+  }));
+}
+
+export async function hasNewCommunityProgress(communityId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const { data: lastSeen } = await supabase
+    .from("community_progress_last_seen")
+    .select("last_seen_at")
+    .eq("user_id", user.id)
+    .eq("community_id", communityId)
+    .maybeSingle();
+
+  const cutoff = lastSeen?.last_seen_at || "1970-01-01";
+
+  const { count } = await supabase
+    .from("community_goal_progress")
+    .select("id", { count: "exact", head: true })
+    .eq("community_id", communityId)
+    .neq("user_id", user.id)
+    .gt("created_at", cutoff);
+
+  return (count || 0) > 0;
+}
+
+export async function markCommunityProgressSeen(communityId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  await supabase.from("community_progress_last_seen").upsert(
+    { user_id: user.id, community_id: communityId, last_seen_at: new Date().toISOString() },
+    { onConflict: "user_id,community_id" }
+  );
 }

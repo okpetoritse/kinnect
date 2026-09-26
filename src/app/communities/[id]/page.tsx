@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCommunityPosts, joinCommunity } from "../actions";
+import { getCommunityPosts, joinCommunity, hasNewCommunityProgress } from "../actions"; // <-- Updated imports
 import styles from "./page.module.css";
 import Feed from "./Feed";
 import { ArrowLeft } from "lucide-react";
@@ -67,6 +67,13 @@ export default async function CommunityPage({
   const isMember = !!membership;
   const posts = isMember ? await getCommunityPosts(id) : [];
 
+  // --- NEW CODE: Check for new progress for the red dot ---
+  let hasNewProgress = false;
+  if (isMember && community?.is_goal) {
+    hasNewProgress = await hasNewCommunityProgress(id);
+  }
+  // --------------------------------------------------------
+
   async function handleJoin() {
     "use server";
     await joinCommunity(id);
@@ -109,7 +116,25 @@ export default async function CommunityPage({
                 href={`/communities/${id}/${href}`}
                 className={styles.actionItem}
               >
-                <Icon size={20} className={styles.actionIconLucide} />
+                <div style={{ position: "relative", display: "inline-flex" }}>
+                  <Icon size={20} className={styles.actionIconLucide} />
+                  {/* NEW CODE: Red dot indicator */}
+                  {href === "progress" && hasNewProgress && (
+                    <span 
+                      className={styles.redDot} 
+                      style={{ 
+                        position: "absolute", 
+                        top: -4, 
+                        right: -4, 
+                        width: 10, 
+                        height: 10, 
+                        backgroundColor: "#ef4444", 
+                        borderRadius: "50%",
+                        border: "2px solid #fff"
+                      }} 
+                    />
+                  )}
+                </div>
                 <span className={styles.actionLabel}>{label}</span>
               </Link>
             ))}

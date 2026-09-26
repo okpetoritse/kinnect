@@ -89,7 +89,7 @@ export default function LogProgressForm({
           <input
             className={styles.logInput}
             type="number"
-            placeholder="New value"
+            placeholder="Amount to add"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             required

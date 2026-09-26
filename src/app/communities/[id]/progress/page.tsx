@@ -1,12 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getGoalLeaderboard } from "../../actions";
+import { 
+  getGoalLeaderboard, 
+  getRecentCommunityActivity, 
+  markCommunityProgressSeen 
+} from "../../actions"; // <-- Updated imports
 import Avatar from "@/components/Avatar";
 import BackButton from "@/components/BackButton";
 import styles from "./page.module.css";
 import LogProgressForm from "./LogProgressForm";
 import { Trophy } from "lucide-react";
 import LeaderboardRow from "./LeaderboardRow";
+import ActivityStrip from "./ActivityStrip";
 
 export default async function ProgressPage({
   params,
@@ -38,6 +43,11 @@ export default async function ProgressPage({
 
   if (!community?.is_goal) redirect(`/communities/${id}`);
 
+  // --- NEW CODE: Mark as seen and fetch activity ---
+  await markCommunityProgressSeen(id);
+  const activity = await getRecentCommunityActivity(id);
+  // -------------------------------------------------
+
   const { goalTarget, goalMetricLabel, milestoneThresholds, leaderboard } =
     await getGoalLeaderboard(id);
   const me = leaderboard.find((m) => m.userId === user.id);
@@ -52,6 +62,10 @@ export default async function ProgressPage({
       <p className={styles.reminder}>
         Everyone here tracks their own number toward the same kind of goal.
       </p>
+      
+      {/* NEW CODE: Activity Strip rendered here */}
+      <ActivityStrip activity={activity} currentUserId={user.id} />
+
       <div className={styles.myProgressCard}>
         <div className={styles.myProgressLabel}>Your progress</div>
         <div className={styles.myProgressValue}>
@@ -93,7 +107,12 @@ export default async function ProgressPage({
       <div className={styles.sectionTitle}>Leaderboard</div>
       <div className={styles.list}>
         {leaderboard.map((entry, i) => (
-                    <LeaderboardRow key={entry.userId} entry={entry} rank={i + 1} isMe={entry.userId === user.id} />
+          <LeaderboardRow 
+            key={entry.userId} 
+            entry={entry} 
+            rank={i + 1} 
+            isMe={entry.userId === user.id} 
+          />
         ))}
       </div>
     </main>
