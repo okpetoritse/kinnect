@@ -18,7 +18,7 @@ export default async function HomePage() {
 
   if (!user) redirect("/login");
 
-    await ensureFoundingNumber(supabase, user.id);
+    ensureFoundingNumber(supabase, user.id).catch(() => {});
 
 const { data: profile } = await supabase
   .from("profiles")
