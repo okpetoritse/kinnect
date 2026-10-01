@@ -1,4 +1,4 @@
-"use client";
+ "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -46,8 +46,11 @@ import {
   PhoneOff,
   CornerUpLeft,
   BookHeart,
-  Volume2, // <-- ADD
-  VolumeX, // <-- ADD
+  Volume2,
+  VolumeX,
+  Check,      // <-- ADDED
+  CheckCheck, // <-- ADDED
+  Circle,
 } from "lucide-react";
 
 type Message = {
@@ -73,8 +76,21 @@ type Message = {
   call_status?: "completed" | "missed" | "declined" | null;
   call_duration?: number | null;
   created_at?: string;
+  read_at?: string | null; // <-- ADDED
   reactions?: { userId: string; emoji: string }[];
 };
+
+function formatLastSeen(iso?: string | null) {
+  if (!iso) return "Offline";
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return "Last seen just now";
+  if (mins < 60) return `Last seen ${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `Last seen ${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `Last seen ${days}d ago`;
+}
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
 const MAX_VIDEO_NOTE_SECONDS = 30;
@@ -126,12 +142,14 @@ export default function ChatThread({
   friendId,
   friendName,
   friendAvatarUrl,
+  friendLastSeen,
   currentUserId,
   initialMessages,
 }: {
   friendId: string;
   friendName: string;
   friendAvatarUrl: string | null;
+  friendLastSeen?: string | null; 
   currentUserId: string;
   initialMessages: Message[];
 }) {
@@ -773,13 +791,14 @@ export default function ChatThread({
         <Avatar name={friendName} avatarUrl={friendAvatarUrl} size={36} />
         <div>
           <div className={styles.name}>{friendName}</div>
-          <div className={styles.status}>
-            <span
-              className={`${styles.statusDot} ${
-                friendIsOnline ? styles.statusDotOnline : ""
-              }`}
+                    <div className={styles.status}>
+            <Circle
+              size={8}
+              fill={friendIsOnline ? "var(--teal)" : "transparent"}
+              stroke={friendIsOnline ? "var(--teal)" : "var(--text-secondary)"}
+              strokeWidth={2}
             />
-            {friendIsOnline ? "Active now" : "Offline"}
+            {friendIsOnline ? "Active now" : formatLastSeen(friendLastSeen)}
           </div>
         </div>
         <div className={styles.headerActions}>
@@ -987,13 +1006,18 @@ export default function ChatThread({
                       </div>
                     )}
 
-                    {msg.isLastInGroup && (
+                                        {msg.isLastInGroup && (
                       <div
                         className={`${styles.timestamp} ${
                           isMine ? styles.timestampMine : styles.timestampTheirs
                         }`}
                       >
                         {formatTime(msg.created_at)}
+                        {isMine && (
+                          msg.read_at
+                            ? <CheckCheck size={13} style={{ color: "var(--teal)", marginLeft: 4, verticalAlign: "middle" }} />
+                            : <Check size={13} style={{ color: "var(--text-secondary)", marginLeft: 4, verticalAlign: "middle" }} />
+                        )}
                       </div>
                     )}
                   </div>
@@ -1304,3 +1328,6 @@ export default function ChatThread({
     </>
   );
 }
+
+
+

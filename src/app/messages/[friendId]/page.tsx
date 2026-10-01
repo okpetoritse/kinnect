@@ -19,7 +19,7 @@ export default async function ChatPage({
 
   const { data: friend } = await supabase
     .from("profiles")
-    .select("id, full_name, avatar_url")
+    .select("id, full_name, avatar_url, last_seen_at") // <-- ADDED last_seen_at HERE
     .eq("id", friendId)
     .single();
 
@@ -31,6 +31,7 @@ export default async function ChatPage({
         friendId={friendId}
         friendName={friend?.full_name || "Unknown"}
         friendAvatarUrl={friend?.avatar_url || null}
+        friendLastSeen={friend?.last_seen_at || null} // <-- PASSED PROP HERE
         currentUserId={user.id}
         initialMessages={messages}
       />

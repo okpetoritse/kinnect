@@ -34,8 +34,12 @@ export function usePresence(currentUserId: string) {
 
     let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-    async function trackPresence() {
+        async function trackPresence() {
       await channel.track({ online_at: new Date().toISOString() });
+      await supabase
+        .from("profiles")
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq("id", currentUserId);
     }
 
     channel
