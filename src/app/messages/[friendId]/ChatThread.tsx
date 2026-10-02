@@ -251,8 +251,15 @@ export default function ChatThread({
   }, [friendId]);
 
   useEffect(() => {
-    markMessagesRead(friendId);
-  }, [friendId]);
+  markMessagesRead(friendId);
+  channelRef.current?.send({
+    type: "broadcast",
+    event: "messages_read",
+    payload: { readBy: currentUserId },
+  });
+}, [friendId]);
+
+
 
   useEffect(() => {
     async function loadReactions() {
@@ -309,9 +316,25 @@ export default function ChatThread({
          setFriendIsTyping(false);
         if (newMsg.sender_id !== currentUserId) {
           markMessagesRead(friendId);
+          channelRef.current?.send({
+  type: "broadcast",
+  event: "messages_read",
+  payload: { readBy: currentUserId },
+});
           setTimeout(() => markMessagesRead(friendId), 1500);
         }
       })
+
+      .on("broadcast", { event: "messages_read" }, (payload) => {
+  if (payload.payload.readBy === currentUserId) return;
+  setMessages((prev) =>
+    prev.map((m) =>
+      m.sender_id === currentUserId && !m.read_at
+        ? { ...m, read_at: new Date().toISOString() }
+        : m
+    )
+  );
+})
       .on("broadcast", { event: "typing" }, (payload) => {
         if (payload.payload.userId !== currentUserId) {
           setFriendIsTyping(true);
@@ -1014,10 +1037,8 @@ export default function ChatThread({
                       >
                         {formatTime(msg.created_at)}
                         {isMine && (
-                          msg.read_at
-                            ? <CheckCheck size={13} style={{ color: "var(--teal)", marginLeft: 4, verticalAlign: "middle" }} />
-                            : <Check size={13} style={{ color: "var(--text-secondary)", marginLeft: 4, verticalAlign: "middle" }} />
-                        )}
+  <span className={`${styles.receiptDot} ${msg.read_at ? styles.receiptDotRead : ""}`} />
+)}
                       </div>
                     )}
                   </div>

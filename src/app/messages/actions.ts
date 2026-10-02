@@ -301,7 +301,6 @@ export async function markMessagesRead(friendId: string) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return;
 
   await supabase
