@@ -52,6 +52,9 @@ import {
   CheckCheck, // <-- ADDED
   Circle,
 } from "lucide-react";
+import MediaComposer from "@/components/MediaComposer";
+import MediaBubble from "@/components/MediaBubble";
+import { getMessageMediaBatch } from "../actions";
 
 type Message = {
   id: string;
@@ -199,8 +202,9 @@ export default function ChatThread({
   const burstChunksRef = useRef<Blob[]>([]);
   const recordingStartRef = useRef<number>(0);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const recordingFailsafeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
+  const recordingFailsafeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [showMediaComposer, setShowMediaComposer] = useState(false);
+  const [mediaByMessage, setMediaByMessage] = useState<Record<string, { url: string; type: "image" | "video" }[]>>({});
   const onlineIds = usePresence(currentUserId);
   const friendIsOnline = onlineIds.has(friendId);
 
@@ -284,6 +288,15 @@ export default function ChatThread({
     loadReactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+
+
+// ADD THIS
+useEffect(() => {
+  const ids = messages.map((m) => m.id).filter((id) => !id.startsWith("temp-"));
+  if (ids.length === 0) return;
+  getMessageMediaBatch(ids).then(setMediaByMessage);
+}, [messages.length]);
 
     useEffect(() => {
     return () => {
@@ -976,11 +989,17 @@ export default function ChatThread({
                           duration={msg.audio_duration || 0}
                           isMine={isMine}
                         />
-                      ) : msg.image_url ? (
-                        <div className={styles.imageBubble}>
-                          <img src={msg.image_url} alt="Shared image" />
-                        </div>
-                      ) : msg.sticker_id && STICKERS[msg.sticker_id] ? (
+                      ) : mediaByMessage[msg.id]?.length > 0 ? (
+  <MediaBubble
+    items={mediaByMessage[msg.id]}
+    caption={msg.content}
+    onOpen={(i) => { /* full-screen viewer comes in the next phase */ }}
+  />
+) : msg.image_url ? (
+  <div className={styles.imageBubble}>
+    <img src={msg.image_url} alt="Shared image" />
+  </div>
+) : msg.sticker_id && STICKERS[msg.sticker_id] ? (
                         <div className={styles.stickerBubble}>
                           {STICKERS[msg.sticker_id]}
                         </div>
@@ -1106,6 +1125,17 @@ export default function ChatThread({
                 <Video size={20} />
                 <span>Short Video</span>
               </button>
+                <button
+  className={styles.attachOption}
+  onClick={() => {
+    setShowAttachMenu(false);
+    setShowMediaComposer(true);
+  }}
+>
+  <ImageIcon size={20} />
+  <span>Photos & Videos</span>
+</button>
+
               <button
                 className={styles.attachOption}
                 onClick={() => {
@@ -1282,6 +1312,36 @@ export default function ChatThread({
             </div>
           </div>
         </div>
+      )}
+
+            {showMediaComposer && (
+        <MediaComposer
+          friendId={friendId}
+          onClose={() => setShowMediaComposer(false)}
+          onSent={(messageId, caption, items) => {
+            setShowMediaComposer(false);
+
+            const newMsg: Message = {
+              id: messageId,
+              sender_id: currentUserId,
+              content: caption || null,
+              created_at: new Date().toISOString(),
+            };
+
+            setMessages((prev) => [...prev, newMsg]);
+
+            setMediaByMessage((prev) => ({
+              ...prev,
+              [messageId]: items,
+            }));
+
+            channelRef.current?.send({
+              type: "broadcast",
+              event: "new_message",
+              payload: newMsg,
+            });
+          }}
+        />
       )}
 
       {callState !== "idle" && (

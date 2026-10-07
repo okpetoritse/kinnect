@@ -526,3 +526,73 @@ export async function markChatActive(friendId: string) {
     { onConflict: "user_id,chat_with_user_id" }
   );
 }
+export async function sendMediaCollection(
+  friendId: string,
+  caption: string,
+  mediaItems: { url: string; type: "image" | "video" }[],
+  replyTo?: { id: string; content: string; senderName: string }
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not logged in" };
+
+  const { data: friendship } = await supabase
+    .from("friend_requests")
+    .select("id")
+    .eq("status", "accepted")
+    .or(
+      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
+    )
+    .maybeSingle();
+
+  if (!friendship) return { error: "You can only message friends" };
+
+  const { data: message, error } = await supabase
+    .from("messages")
+    .insert({
+      sender_id: user.id,
+      receiver_id: friendId,
+      content: caption || null,
+      reply_to_id: replyTo?.id || null,
+      reply_to_content: replyTo?.content || null,
+      reply_to_sender_name: replyTo?.senderName || null,
+    })
+    .select("id")
+    .single();
+
+  if (error || !message) return { error: error?.message || "Could not send" };
+
+  const { error: mediaError } = await supabase.from("message_media").insert(
+    mediaItems.map((m, i) => ({
+      message_id: message.id,
+      media_url: m.url,
+      media_type: m.type,
+      position: i,
+    }))
+  );
+
+  if (mediaError) return { error: mediaError.message };
+
+  revalidatePath(`/messages/${friendId}`);
+  return { success: true, messageId: message.id };
+}
+
+export async function getMessageMediaBatch(messageIds: string[]) {
+  if (messageIds.length === 0) return {};
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("message_media")
+    .select("message_id, media_url, media_type, position")
+    .in("message_id", messageIds)
+    .order("position", { ascending: true });
+
+  const byMessage: Record<string, { url: string; type: "image" | "video" }[]> = {};
+  (data || []).forEach((row) => {
+    if (!byMessage[row.message_id]) byMessage[row.message_id] = [];
+    byMessage[row.message_id].push({ url: row.media_url, type: row.media_type as any });
+  });
+  return byMessage;
+}

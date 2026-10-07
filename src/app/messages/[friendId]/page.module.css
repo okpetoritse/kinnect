@@ -1029,3 +1029,101 @@
   font-size: 13px;
   color: var(--text-primary);
 }
+.mediaBubble {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  max-width: 240px;
+  box-shadow: var(--shadow-sm);
+}
+
+.mediaBubble::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle at 30% 50%, var(--coral) 0 5px, transparent 5.5px),
+              radial-gradient(circle at 70% 50%, var(--teal) 0 5px, transparent 5.5px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.mediaSingle {
+  width: 100%;
+  display: block;
+  max-height: 300px;
+  object-fit: cover;
+}
+
+.mediaVideoWrap {
+  position: relative;
+}
+
+.mediaPlayOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mediaPlayBtn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.mediaDuration {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+}
+
+.mediaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+
+.mediaGridItem {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.mediaGridItem img, .mediaGridItem video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mediaGridOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  font-weight: 700;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mediaCaption {
+  padding: 8px 10px;
+  font-size: 13px;
+  background: var(--surface);
+}
