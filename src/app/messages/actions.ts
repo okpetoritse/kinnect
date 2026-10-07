@@ -38,7 +38,12 @@ export async function getMessages(friendId: string) {
 export async function sendMessage(
   friendId: string,
   content: string,
-  replyTo?: { id: string; content: string; senderName: string }
+  replyTo?: {
+  id: string;
+  content: string;
+  senderName: string;
+  thumbnailUrl?: string | null;
+}
 ) {
   const supabase = await createClient();
   const {
@@ -82,13 +87,14 @@ export async function sendMessage(
   }
 
   const { error } = await supabase.from("messages").insert({
-    sender_id: user.id,
-    receiver_id: friendId,
-    content: content.trim(),
-    reply_to_id: replyTo?.id || null,
-    reply_to_content: replyTo?.content || null,
-    reply_to_sender_name: replyTo?.senderName || null,
-  });
+  sender_id: user.id,
+  receiver_id: friendId,
+  content: content.trim(),
+  reply_to_id: replyTo?.id || null,
+  reply_to_content: replyTo?.content || null,
+  reply_to_sender_name: replyTo?.senderName || null,
+  reply_thumbnail_url: replyTo?.thumbnailUrl || null, // <--- Add this
+});
 
   if (error) return { error: error.message };
 

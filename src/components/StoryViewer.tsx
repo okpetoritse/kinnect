@@ -172,14 +172,21 @@ export default function StoryViewer({
         {entry.media_url ? (
           isVideo ? (
             <video
-              ref={videoRef}
-              src={entry.media_url}
-              className={styles.stageMedia}
-              autoPlay
-              playsInline
-              onEnded={goNext}
-              onTimeUpdate={handleVideoTimeUpdate}
-            />
+  ref={videoRef}
+  src={entry.media_url}
+  className={styles.stageMedia}
+  autoPlay
+  playsInline
+  preload="metadata"
+  onLoadedMetadata={(e) => {
+    // Forces browser decoder to render the first frame immediately instead of a blank screen
+    if (e.currentTarget.currentTime === 0) {
+      e.currentTarget.currentTime = 0.001;
+    }
+  }}
+  onEnded={goNext}
+  onTimeUpdate={handleVideoTimeUpdate}
+/>
           ) : (
             <img src={entry.media_url} className={styles.stageMedia} alt="" />
           )

@@ -55,7 +55,13 @@ export default function CreateStoryModal({
 
         {mediaUrl ? (
           mediaType === "video" ? (
-            <video src={mediaUrl} controls style={{ width: "100%", borderRadius: 12, marginBottom: 12 }} />
+                       <video
+              src={mediaUrl}
+              controls
+              preload="metadata"
+              onLoadedMetadata={(e) => { e.currentTarget.currentTime = 0.1; }}
+              style={{ width: "100%", borderRadius: 12, marginBottom: 12 }}
+            />
           ) : (
             <img src={mediaUrl} style={{ width: "100%", borderRadius: 12, marginBottom: 12 }} alt="" />
           )

@@ -43,8 +43,8 @@ export async function getFriendsWithActiveStories() {
 
   const { data: friendRows } = await supabase
     .from("friend_requests")
-    .select(
-      "sender_id, receiver_id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, avatar_url), receiver:profiles!friend_requests_receiver_id_fkey(id, full_name, avatar_url)"
+        .select(
+      "sender_id, receiver_id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url), receiver:profiles!friend_requests_receiver_id_fkey(id, full_name, username, avatar_url)"
     )
     .eq("status", "accepted")
     .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
@@ -95,9 +95,9 @@ export async function getFriendsWithActiveStories() {
     .filter((f) => byFriend.has(f.id))
     .map((f) => {
       const info = byFriend.get(f.id)!;
-      return {
+            return {
         id: f.id,
-        name: f.full_name || "Unknown",
+        name: f.username ? `@${f.username}` : f.full_name || "Unknown",
         avatarUrl: f.avatar_url,
         hasUnseen: info.hasUnseen,
         expiresAt: info.earliestExpiry,
@@ -198,12 +198,12 @@ export async function getStorySparkers(storyId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("story_sparks")
-    .select("user_id, profiles!story_sparks_user_id_fkey(full_name)")
+    .select("user_id, profiles!story_sparks_user_id_fkey(full_name, username)")
     .eq("story_id", storyId);
 
   return (data || []).map((s: any) => {
     const profile = Array.isArray(s.profiles) ? s.profiles[0] : s.profiles;
-    return profile?.full_name || "Someone";
+    return profile?.username ? `@${profile.username}` : profile?.full_name || "Someone";
   });
 }
 
@@ -222,19 +222,17 @@ export async function sendStoryReply(storyId: string, message: string) {
 
   if (!story || story.user_id === user.id) return { error: "Cannot reply to this" };
 
-  const insertPayload: any = {
+  const label = story.media_type === "video" ? "🎥 Video story" : story.media_url ? "📷 Photo story" : "Your story";
+
+  const { error } = await supabase.from("messages").insert({
     sender_id: user.id,
     receiver_id: story.user_id,
-    content: `💬 Replied to your story: "${message}"`,
-  };
+    content: message,
+    reply_to_content: story.content_text || label,
+    reply_to_sender_name: "Your story",
+    reply_thumbnail_url: story.media_type === "image" ? story.media_url : null,
+  });
 
-  if (story.media_type === "video") {
-    insertPayload.video_url = story.media_url;
-  } else if (story.media_url) {
-    insertPayload.image_url = story.media_url;
-  }
-
-  const { error } = await supabase.from("messages").insert(insertPayload);
   return error ? { error: error.message } : { success: true };
 }
 

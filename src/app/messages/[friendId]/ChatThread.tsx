@@ -72,6 +72,7 @@ type Message = {
   reply_to_id?: string | null;
   reply_to_content?: string | null;
   reply_to_sender_name?: string | null;
+  reply_thumbnail_url?: string | null;
   call_type?: "audio" | "video" | null;
   call_status?: "completed" | "missed" | "declined" | null;
   call_duration?: number | null;
@@ -968,7 +969,7 @@ export default function ChatThread({
                             <div className={styles.videoCaption}>{msg.content}</div>
                           )}
                         </div>
-                        
+
                       ) : msg.audio_url ? (
                         <VoiceNotePlayer
                           audioUrl={msg.audio_url}
@@ -990,14 +991,19 @@ export default function ChatThread({
                             !isMine && setReportModal({ messageId: msg.id })
                           }
                         >
-                          {msg.reply_to_content && (
-                            <div className={styles.quotedMessage}>
-                              <span className={styles.quotedMessageName}>
-                                {msg.reply_to_sender_name}
-                              </span>
-                              <span className={styles.quotedMessageText}>
-                                {msg.reply_to_content}
-                              </span>
+                                                    {msg.reply_to_content && (
+                            <div className={styles.quotedMessage} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              {msg.reply_thumbnail_url && (
+                                <img src={msg.reply_thumbnail_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
+                              )}
+                              <div>
+                                <span className={styles.quotedMessageName}>
+                                  {msg.reply_to_sender_name}
+                                </span>
+                                <span className={styles.quotedMessageText}>
+                                  {msg.reply_to_content}
+                                </span>
+                              </div>
                             </div>
                           )}
                           {msg.content}
