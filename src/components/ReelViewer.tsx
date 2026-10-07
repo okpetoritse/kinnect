@@ -39,6 +39,10 @@ export default function ReelViewer({
   onClose: () => void;
 }) {
   const [index, setIndex] = useState(entries.length - 1);
+  
+  // 1. MOVED UP: Define 'entry' early so our hooks can use it!
+  const entry = entries[index]; 
+  
   const [progress, setProgress] = useState(0);
   const [paused, setPaused] = useState(false);
   const [sparks, setSparks] = useState<Record<string, string[]>>(
@@ -49,7 +53,15 @@ export default function ReelViewer({
   const [commentError, setCommentError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
+  
+  const [isVideo, setIsVideo] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
 
+  // Now this works safely because 'entry' exists
+  useEffect(() => {
+    setIsVideo(entry?.media_type === "video");
+  }, [entry]);
+  
   const isOwnReel = currentUserId === ownerId;
 
   useEffect(() => {
@@ -58,10 +70,10 @@ export default function ReelViewer({
   }, []);
 
   useEffect(() => {
+    if (isVideo) return;
     if (paused) return;
     setProgress(0);
     if (timerRef.current) clearInterval(timerRef.current);
-
     const step = 100 / (SLIDE_DURATION_MS / 100);
     timerRef.current = setInterval(() => {
       setProgress((p) => {
@@ -72,12 +84,11 @@ export default function ReelViewer({
         return p + step;
       });
     }, 100);
-
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, paused]);
+  }, [index, paused, isVideo]);
 
   function goNext() {
     if (index >= entries.length - 1) {
@@ -91,7 +102,7 @@ export default function ReelViewer({
     if (index > 0) setIndex((i) => i - 1);
   }
 
-  const entry = entries[index];
+  // 2. We still need to return null if no entry exists, we just moved the definition up
   if (!entry) return null;
 
   const entryKey = entry.entryId || entry.id;
@@ -158,7 +169,18 @@ export default function ReelViewer({
       <div className={styles.stage}>
         {entry.media_url ? (
           entry.media_type === "video" ? (
-            <video src={entry.media_url} className={styles.stageMedia} autoPlay muted playsInline />
+            <video
+              ref={videoRef}
+              src={entry.media_url}
+              className={styles.stageMedia}
+              autoPlay
+              playsInline
+              onEnded={goNext}
+              onTimeUpdate={() => {
+                const v = videoRef.current;
+                if (v && v.duration) setProgress((v.currentTime / v.duration) * 100);
+              }}
+            />
           ) : (
             <img src={entry.media_url} className={styles.stageMedia} alt="" />
           )
@@ -200,7 +222,7 @@ export default function ReelViewer({
       </div>
 
       <div className={styles.footer}>
-                {!isOwnReel && canComment && (
+        {!isOwnReel && canComment && (
           <div className={styles.commentRow} onClick={(e) => e.stopPropagation()}>
             <input
               className={styles.commentInput}

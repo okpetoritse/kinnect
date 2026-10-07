@@ -5,10 +5,17 @@ import { getHomeData } from "./actions";
 import styles from "./page.module.css";
 import { MessageCircle, Users, Calendar } from "lucide-react";
 import HomeCarousel from "@/components/HomeCarousel";
-import { getFriendsWithActiveReels } from "@/app/reels/actions";
 import Avatar from "@/components/Avatar";
 import FounderBadge from "@/components/FounderBadge";
 import { ensureFoundingNumber } from "@/lib/founding/ensureFoundingNumber";
+import ActivityStrip from "@/components/ActivityStrip";
+
+function getTimeGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -18,27 +25,39 @@ export default async function HomePage() {
 
   if (!user) redirect("/login");
 
-    ensureFoundingNumber(supabase, user.id).catch(() => {});
+  ensureFoundingNumber(supabase, user.id).catch(() => {});
 
-const { data: profile } = await supabase
-  .from("profiles")
-  .select("country")
-  .eq("id", user.id)
-  .single();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("country, avatar_url")
+    .eq("id", user.id)
+    .single();
 
-const { conversations, communities, events } = await getHomeData(user.id);
+  const { conversations, communities, events } = await getHomeData(user.id);
   const firstName = (user.user_metadata?.full_name || "there").split(" ")[0];
-  const friendsReels = await getFriendsWithActiveReels();
 
   return (
     <main className={styles.wrapper}>
-    <HomeCarousel
-  firstName={firstName}
-  friendsReels={friendsReels as any}
-  currentUserId={user.id}
-  hasCommunities={communities.length > 0}
-  myCountry={profile?.country || ""}
-/>
+      <div className={styles.greetingCard}>
+        <div className={styles.greetingTop}>
+          <div>
+            <div className={styles.greetingTimeLabel}>{getTimeGreeting()}</div>
+            <div className={styles.greetingName}>Hey, {firstName} 👋</div>
+            <div className={styles.greetingSub}>Here&apos;s what&apos;s happening today</div>
+          </div>
+          <Avatar name={firstName} avatarUrl={profile?.avatar_url} size={48} />
+        </div>
+      </div>
+
+      <ActivityStrip currentUserId={user.id} myName={firstName} myAvatarUrl={profile?.avatar_url || null} />
+
+      <HomeCarousel
+        firstName={firstName}
+        friendsReels={[]}
+        currentUserId={user.id}
+        hasCommunities={communities.length > 0}
+        myCountry={profile?.country || ""}
+      />
 
       <div className={styles.section}>
         <div className={styles.sectionHeader}>
@@ -57,16 +76,13 @@ const { conversations, communities, events } = await getHomeData(user.id);
               href={`/messages/${c.friendId}`}
               className={styles.conversationRow}
             >
-                           <Avatar name={c.name} avatarUrl={c.avatarUrl} size={40} />
-                           
+              <Avatar name={c.name} avatarUrl={c.avatarUrl} size={40} />
               <div className={styles.conversationBody}>
                 <div className={styles.conversationName}>
-  {c.username ? `@${c.username}` : c.name}
-  <FounderBadge number={c.foundingNumber} />
-</div>
-                <div className={styles.conversationPreview}>
-                  {c.lastMessage}
+                  {c.username ? `@${c.username}` : c.name}
+                  <FounderBadge number={c.foundingNumber} />
                 </div>
+                <div className={styles.conversationPreview}>{c.lastMessage}</div>
               </div>
             </Link>
           ))

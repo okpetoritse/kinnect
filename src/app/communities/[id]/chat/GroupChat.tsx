@@ -128,6 +128,7 @@ export default function GroupChat({
     if (!content) return;
     setText("");
 
+    const tempId = `temp-${Date.now()}`;
     const newMsg: Message = {
       id: `temp-${Date.now()}`,
       sender_id: currentUserId,
@@ -189,6 +190,7 @@ export default function GroupChat({
       return;
     }
 
+    const tempId = `temp-${Date.now()}`;
     const newMsg: Message = {
       id: `temp-${Date.now()}`,
       sender_id: currentUserId,
@@ -214,6 +216,7 @@ export default function GroupChat({
   async function handleStickerSelect(stickerId: StickerId) {
     setShowStickers(false);
 
+    const tempId = `temp-${Date.now()}`;
     const newMsg: Message = {
       id: `temp-${Date.now()}`,
       sender_id: currentUserId,

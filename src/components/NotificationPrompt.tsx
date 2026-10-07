@@ -13,16 +13,13 @@ function urlBase64ToUint8Array(base64String: string) {
 }
 
 export default function NotificationPrompt() {
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (!("Notification" in window) || !("serviceWorker" in navigator)) return;
+  const [show, setShow] = useState(() => {
+    if (typeof window === "undefined" || !("Notification" in window)) return false;
     if (Notification.permission === "default") {
-      const dismissed = localStorage.getItem("notif_prompt_dismissed");
-      if (!dismissed) setShow(true);
+      return !localStorage.getItem("notif_prompt_dismissed");
     }
-  }, []);
+    return false;
+  });
 
   async function handleEnable() {
     const permission = await Notification.requestPermission();

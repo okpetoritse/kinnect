@@ -68,7 +68,6 @@ type Slide =
   | { type: "promo"; href: string; text: string; imageUrl: string | null };
 
   const slides: Slide[] = [
-    { type: "greeting" },
     ...(festive ? [{ type: "festive" as const, ...festive }] : []),
     ...friendsReels
       .filter((f) => f.hasUnseen)
@@ -114,6 +113,8 @@ type Slide =
     }
   }
 
+  if (slides.length === 0) return null;
+
   return (
     <>
       <div className={styles.wrapper}>
@@ -122,14 +123,7 @@ type Slide =
           style={{ transform: `translateX(-${index * 100}%)` }}
         >
           {slides.map((slide, i) => {
-            if (slide.type === "greeting") {
-              return (
-                <div key={i} className={`${styles.slide} ${styles.slideGreeting}`}>
-                  <div className={styles.slideTitle}>Hey, {firstName} 👋</div>
-                  <div className={styles.slideSub}>Here&apos;s what&apos;s happening</div>
-                </div>
-              );
-            }
+
             if (slide.type === "festive") {
               return (
                 <div key={i} className={`${styles.slide} ${styles.slideFestive}`}>

@@ -1,0 +1,67 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 20px;
+}
+
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: 100%;
+  max-width: 340px;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 90px;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  font-size: 15px;
+  margin-bottom: 12px;
+  color: white;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.colorRow {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.colorSwatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+.colorSwatchSelected {
+  border-color: var(--text-primary);
+}
+
+.attachBtn {
+  width: 100%;
+  background: var(--background);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+.postBtn {
+  width: 100%;
+  background: var(--coral);
+  color: white;
+  border-radius: var(--radius-sm);
+  padding: 13px;
+  font-weight: 600;
+}

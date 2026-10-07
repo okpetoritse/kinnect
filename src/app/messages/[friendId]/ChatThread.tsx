@@ -182,6 +182,10 @@ export default function ChatThread({
   const [iBlockedThem, setIBlockedThem] = useState(false);
   const [theyBlockedMe, setTheyBlockedMe] = useState(false);
   const [showPingMenu, setShowPingMenu] = useState(false);
+    const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -624,8 +628,9 @@ export default function ChatThread({
   async function handleStickerSelect(stickerId: StickerId) {
     setShowStickers(false);
 
+        const tempId = `temp-${Date.now()}`;
     const newMsg: Message = {
-      id: `temp-${Date.now()}`,
+      id: tempId,
       sender_id: currentUserId,
       content: null,
       sticker_id: stickerId,
@@ -821,7 +826,7 @@ export default function ChatThread({
               stroke={friendIsOnline ? "var(--teal)" : "var(--text-secondary)"}
               strokeWidth={2}
             />
-            {friendIsOnline ? "Active now" : formatLastSeen(friendLastSeen)}
+            {friendIsOnline ? "Active now" : mounted ? formatLastSeen(friendLastSeen) : "Offline"}
           </div>
         </div>
         <div className={styles.headerActions}>
@@ -956,10 +961,14 @@ export default function ChatThread({
                             )}
                           </div>
                         </Link>
-                      ) : msg.video_url ? (
+                                            ) : msg.video_url ? (
                         <div className={styles.videoNoteBubble}>
                           <video src={msg.video_url} controls />
+                          {msg.content && (
+                            <div className={styles.videoCaption}>{msg.content}</div>
+                          )}
                         </div>
+                        
                       ) : msg.audio_url ? (
                         <VoiceNotePlayer
                           audioUrl={msg.audio_url}

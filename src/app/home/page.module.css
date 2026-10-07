@@ -185,3 +185,106 @@
   padding: 2px 7px;
   border-radius: var(--radius-pill);
 }
+
+.greetingCard {
+  background: linear-gradient(135deg, var(--coral) 0%, var(--pink) 60%, var(--amber) 100%);
+  border-radius: var(--radius);
+  padding: 22px 20px;
+  color: white;
+  margin-bottom: 18px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.greetingCard::after {
+  content: "";
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.greetingTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 1;
+}
+
+.greetingTimeLabel {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+  margin-bottom: 4px;
+}
+
+.greetingName {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.greetingSub {
+  font-size: 13px;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+
+
+.storyStrip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 0 16px;
+}
+
+.storyItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  width: 60px;
+}
+
+.storyRing {
+  border-radius: 50%;
+  padding: 3px;
+}
+
+.storyRingUnseen {
+  background: linear-gradient(135deg, var(--coral), var(--amber));
+}
+
+.storyRingSeen {
+  background: var(--border-subtle);
+}
+
+.addStoryCircle {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--coral);
+}
+
+.storyName {
+  font-size: 10px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  text-align: center;
+}

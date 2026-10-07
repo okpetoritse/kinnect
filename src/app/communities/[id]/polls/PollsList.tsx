@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import PollCard from "./PollCard";
 import styles from "./page.module.css";
+import { useMemo } from "react";
 
 type Poll = {
   id: string;
@@ -55,7 +56,7 @@ export default function PollsList({
       new Date(b.created_at || 0).getTime() -
       new Date(a.created_at || 0).getTime()
   );
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const weekAgo = useMemo(() => Date.now() - 7 * 24 * 60 * 60 * 1000, []);
   const recentPolls = sorted.filter(
     (p) => new Date(p.created_at || 0).getTime() > weekAgo
   );

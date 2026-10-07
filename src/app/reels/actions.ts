@@ -35,7 +35,7 @@ export async function getFriendsWithActiveReels() {
 
   const { data: recentEntries } = await supabase
     .from("community_goal_progress")
-    .select("id, user_id, created_at")
+    .select("id, user_id, created_at, note")
     .in("user_id", friendIds)
     .gte("created_at", dayAgo)
     .order("created_at", { ascending: false });
@@ -62,14 +62,19 @@ export async function getFriendsWithActiveReels() {
     }
   });
 
-  return friends
+    return friends
     .filter((f) => byFriend.has(f.id))
-    .map((f) => ({
-      id: f.id,
-      name: f.full_name || "Unknown",
-      avatarUrl: f.avatar_url,
-      hasUnseen: byFriend.get(f.id)!.hasUnseen,
-    }));
+    .map((f) => {
+      const latest = recentEntries.filter((e) => e.user_id === f.id).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      return {
+        id: f.id,
+        name: f.full_name || "Unknown",
+        avatarUrl: f.avatar_url,
+        hasUnseen: byFriend.get(f.id)!.hasUnseen,
+        latestNote: latest?.note || null,
+        latestAt: latest?.created_at || null,
+      };
+    });
 }
 
 export async function getReelEntries(targetUserId: string) {
@@ -192,7 +197,7 @@ export async function toggleReelSpark(entryId: string) {
 
   if (entry && entry.user_id !== user.id) {
     const name = user.user_metadata?.full_name || "Someone";
-    sendPushToUser(entry.user_id, "✦ New spark", `${name} sparked your progress`, "/home");
+    sendPushToUser(entry.user_id, "New reaction", `${name} reacted to your reel`, "/home");
   }
 
   return { sparked: true };
@@ -320,7 +325,7 @@ export async function sendReelComment(entryId: string, message: string) {
 
   const { data: entry } = await supabase
     .from("community_goal_progress")
-    .select("user_id, note, media_url")
+    .select("user_id, note, media_url, media_type")
     .eq("id", entryId)
     .single();
 
@@ -337,12 +342,19 @@ export async function sendReelComment(entryId: string, message: string) {
 
   if (!friendship) return { error: "Only friends can comment on this" };
 
-  const { error } = await supabase.from("messages").insert({
+  const insertPayload: any = {
     sender_id: user.id,
     receiver_id: entry.user_id,
     content: `💬 On your progress: "${message}"`,
-    image_url: entry.media_url,
-  });
+  };
+
+  if (entry.media_type === "video") {
+    insertPayload.video_url = entry.media_url;
+  } else if (entry.media_url) {
+    insertPayload.image_url = entry.media_url;
+  }
+
+  const { error } = await supabase.from("messages").insert(insertPayload);
 
   if (error) return { error: error.message };
   return { success: true };

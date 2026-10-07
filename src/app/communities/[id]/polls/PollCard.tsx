@@ -40,9 +40,10 @@ export default function PollCard({
         (v) => !(v.option_id === optionId && v.user_id === currentUserId)
       );
     } else if (allowMultiple) {
+            const tempId = `temp-${Date.now()}`;
       updatedVotes = [
         ...votes,
-        { id: `temp-${Date.now()}`, option_id: optionId, user_id: currentUserId },
+        { id: tempId, option_id: optionId, user_id: currentUserId },
       ];
     } else {
       updatedVotes = [
