@@ -33,6 +33,7 @@ import { useDMCall } from "@/lib/webrtc/useDMCall";
 import VoiceNotePlayer from "./VoiceNotePlayer";
 import Link from "next/link";
 import styles from "./page.module.css";
+import LiveWaveform from "@/components/LiveWaveform";
 import MediaViewer from "@/components/MediaViewer";
 import {
   Phone,
@@ -198,6 +199,7 @@ export default function ChatThread({
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoGalleryInputRef = useRef<HTMLInputElement>(null);
+  const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null);
   const channelRef = useRef<any>(null);
   const stopTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -737,6 +739,7 @@ useEffect(() => {
 
       mediaRecorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        setRecordingStream(null);
         if (recordingFailsafeRef.current) {
           clearTimeout(recordingFailsafeRef.current);
           recordingFailsafeRef.current = null;
@@ -787,6 +790,7 @@ useEffect(() => {
 
       mediaRecorder.start();
       mediaRecorderRef.current = mediaRecorder;
+      setRecordingStream(stream);
       setRecording(true);
 
       // Hard failsafe: if a touch-end event is ever dropped (a real, known
@@ -800,6 +804,7 @@ useEffect(() => {
       }, 120000);
     } catch (err) {
       console.error("Microphone permission denied or unavailable", err);
+      setRecordingStream(null);
       setRecording(false);
     }
   }
@@ -1220,33 +1225,34 @@ useEffect(() => {
               className={styles.imageInput}
               onChange={handleVideoGallerySelect}
             />
-            <button
-              className={styles.imageBtn}
-              onClick={() => setShowAttachMenu((prev) => !prev)}
-            >
-              <Plus size={20} />
-            </button>
-            <button
-              className={styles.imageBtn}
-              onClick={() => setShowPingMenu((p) => !p)}
-            >
-              👀
-            </button>
-            {showPingMenu && (
-              <div className={styles.pingMenu}>
-                {PINGS.map((p) => (
-                  <button key={p} className={styles.pingOption} onClick={() => handlePing(p)}>
-                    {p}
-                  </button>
-                ))}
-              </div>
+            {!recording && (
+              <>
+                <button
+                  className={styles.imageBtn}
+                  onClick={() => setShowAttachMenu((prev) => !prev)}
+                >
+                  <Plus size={20} />
+                </button>
+                <button
+                  className={styles.imageBtn}
+                  onClick={() => setShowPingMenu((p) => !p)}
+                >
+                  👀
+                </button>
+                {showPingMenu && (
+                  <div className={styles.pingMenu}>
+                    {PINGS.map((p) => (
+                      <button key={p} className={styles.pingOption} onClick={() => handlePing(p)}>
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {recording ? (
-              <div className={styles.recordingIndicator}>
-                <span className={styles.recordingDot} />
-                Recording...
-              </div>
+              <LiveWaveform stream={recordingStream} />
             ) : (
               <input
                 className={styles.input}

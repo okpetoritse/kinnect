@@ -45,14 +45,34 @@ export default function MediaComposer({
     const supabase = createClient();
     const uploaded: { url: string; type: "image" | "video" }[] = [];
 
+    let failed = 0;
+
     for (let i = 0; i < items.length; i++) {
       setProgressLabel(`Uploading ${i + 1} of ${items.length}...`);
       const item = items[i];
       const filePath = `${Date.now()}-${i}-${item.file.name}`;
       const { error } = await supabase.storage.from("chat-images").upload(filePath, item.file);
-      if (!error) {
-        const { data: { publicUrl } } = supabase.storage.from("chat-images").getPublicUrl(filePath);
-        uploaded.push({ url: publicUrl, type: item.type });
+      if (error) {
+        failed++;
+        continue;
+      }
+      const { data: { publicUrl } } = supabase.storage.from("chat-images").getPublicUrl(filePath);
+      uploaded.push({ url: publicUrl, type: item.type });
+    }
+
+    if (uploaded.length === 0) {
+      setUploading(false);
+      alert("Upload failed. Check your connection and try again.");
+      return;
+    }
+
+    if (failed > 0) {
+      const sendRest = confirm(
+        `${failed} of ${items.length} couldn't upload. Send the other ${uploaded.length}?`
+      );
+      if (!sendRest) {
+        setUploading(false);
+        return;
       }
     }
 
