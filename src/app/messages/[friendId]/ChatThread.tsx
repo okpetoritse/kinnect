@@ -14,7 +14,8 @@ import {
   notifyIncomingCall,
   sendVideoNote,
   logCallMessage,
-  markChatActive
+  markChatActive,
+  deleteMessage
 } from "../actions";
 import {
   blockUser,
@@ -32,6 +33,7 @@ import { useDMCall } from "@/lib/webrtc/useDMCall";
 import VoiceNotePlayer from "./VoiceNotePlayer";
 import Link from "next/link";
 import styles from "./page.module.css";
+import MediaViewer from "@/components/MediaViewer";
 import {
   Phone,
   Video,
@@ -192,6 +194,7 @@ export default function ChatThread({
   }, []);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [viewer, setViewer] = useState<{ messageId: string; index: number } | null>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const videoGalleryInputRef = useRef<HTMLInputElement>(null);
@@ -353,6 +356,11 @@ useEffect(() => {
     )
   );
 })
+
+        .on("broadcast", { event: "message_deleted" }, (payload) => {
+        const { messageId } = payload.payload as any;
+        setMessages((prev) => prev.filter((m) => m.id !== messageId));
+      })
       .on("broadcast", { event: "typing" }, (payload) => {
         if (payload.payload.userId !== currentUserId) {
           setFriendIsTyping(true);
@@ -467,15 +475,17 @@ useEffect(() => {
     setReactionPickerFor(null);
     setReplyTarget({
       id: msg.id,
-      content:
-        msg.content ||
-        (msg.image_url
-          ? "📷 Photo"
-          : msg.video_url
-          ? "🎥 Video"
-          : msg.audio_url
-          ? "🎤 Voice message"
-          : "Message"),
+     content:
+  msg.content ||
+  (msg.image_url
+    ? "📷 Photo"
+    : msg.video_url
+    ? "🎥 Video"
+    : msg.audio_url
+    ? "🎤 Voice message"
+    : mediaByMessage[msg.id]?.length
+    ? "📷 Photos & videos"
+    : "Message"),
       senderName: msg.sender_id === currentUserId ? "You" : friendName,
     });
   }
@@ -990,11 +1000,11 @@ useEffect(() => {
                           isMine={isMine}
                         />
                       ) : mediaByMessage[msg.id]?.length > 0 ? (
-  <MediaBubble
-    items={mediaByMessage[msg.id]}
-    caption={msg.content}
-    onOpen={(i) => { /* full-screen viewer comes in the next phase */ }}
-  />
+                          <MediaBubble
+                          items={mediaByMessage[msg.id]}
+                          caption={msg.content}
+                          onOpen={(i) => setViewer({ messageId: msg.id, index: i })}
+                        />
 ) : msg.image_url ? (
   <div className={styles.imageBubble}>
     <img src={msg.image_url} alt="Shared image" />
@@ -1343,6 +1353,44 @@ useEffect(() => {
           }}
         />
       )}
+
+            {viewer && messages.find((m) => m.id === viewer.messageId) && mediaByMessage[viewer.messageId] && (() => {
+        const viewerMsg = messages.find((m) => m.id === viewer.messageId)!;
+        const mine = viewerMsg.sender_id === currentUserId;
+        return (
+          <MediaViewer
+            items={mediaByMessage[viewer.messageId]}
+            startIndex={viewer.index}
+            caption={viewerMsg.content}
+            senderName={mine ? "You" : friendName}
+            senderAvatarUrl={mine ? null : friendAvatarUrl}
+            sentAt={viewerMsg.created_at || new Date().toISOString()}
+            isMine={mine}
+            reactionEmojis={REACTION_EMOJIS}
+            onClose={() => setViewer(null)}
+            onReply={() => {
+              setViewer(null);
+              handleStartReply(viewerMsg);
+            }}
+            onReact={(emoji) => handleReact(viewerMsg, emoji)}
+            onDelete={async () => {
+              const id = viewerMsg.id;
+              const result = await deleteMessage(id);
+              if (result?.error) {
+                alert(result.error);
+                return;
+              }
+              setMessages((prev) => prev.filter((m) => m.id !== id));
+              channelRef.current?.send({
+                type: "broadcast",
+                event: "message_deleted",
+                payload: { messageId: id },
+              });
+              setViewer(null);
+            }}
+          />
+        );
+      })()}
 
       {callState !== "idle" && (
   <div className={styles.callOverlay}>

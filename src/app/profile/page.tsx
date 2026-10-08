@@ -59,6 +59,9 @@ export default async function ProfilePage() {
         <Link href="/business" className={styles.menuItem}>
           Discover businesses
         </Link>
+                <Link href="/settings/media" className={styles.menuItem}>
+          Media &amp; Storage
+        </Link>
         <Link href="/marketplace" className={styles.menuItem}>
           Marketplace
         </Link>

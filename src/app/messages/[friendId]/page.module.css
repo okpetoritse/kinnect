@@ -1127,3 +1127,37 @@
   font-size: 13px;
   background: var(--surface);
 }
+
+.mediaSkeleton {
+  width: 220px;
+  height: 160px;
+  background: var(--border-subtle);
+}
+
+.mediaPlaceholder {
+  width: 220px;
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mediaPlaceholderHint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--coral);
+}
+
+.mediaSummary {
+  padding: 6px 10px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface);
+}
