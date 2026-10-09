@@ -5,6 +5,7 @@ import BottomNav from "./BottomNav";
 import styles from "./AppChrome.module.css";
 import InstallPrompt from "./InstallPrompt";
 import NotificationPrompt from "./NotificationPrompt";
+import PushSync from "./PushSync";
 
 
 const HIDE_NAV_ON = ["/login", "/signup", "/", "/support"];
@@ -20,6 +21,7 @@ export default function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <div className={showNav ? styles.contentWithNav : ""}>{children}</div>
+      <PushSync />
       {showNav && <BottomNav />}
       {showNav && <InstallPrompt />}
       {showNav && <NotificationPrompt />}

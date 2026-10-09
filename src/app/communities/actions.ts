@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendPushToUser } from "@/lib/notifications/sendPush";
+import { queuePush } from "@/lib/notifications/queuePush";
 
 
 export async function createCommunity(formData: FormData) {
@@ -203,14 +204,12 @@ export async function sendCommunityMessage(
     .eq("community_id", communityId)
     .neq("user_id", user.id);
 
-  (members || []).forEach((m) =>
-    sendPushToUser(
-      m.user_id,
-      "New community message",
-      content.slice(0, 100),
-      `/communities/${communityId}/chat`
-    )
-  );
+  queuePush(
+  (members || []).map((m) => m.user_id),
+  "New community message",
+  content.slice(0, 100),
+  `/communities/${communityId}/chat`
+);
 
   return { success: true };
 }
@@ -335,14 +334,12 @@ export async function createEvent(formData: FormData) {
     .eq("community_id", communityId)
     .neq("user_id", user!.id);
 
-  (members || []).forEach((m) => {
-    sendPushToUser(
-      m.user_id,
-      "New event",
-      `${title} was just scheduled`,
-      `/communities/${communityId}/calendar`
-    );
-  });
+  queuePush(
+  (members || []).map((m) => m.user_id),
+  "New event",
+  `${title} was just scheduled`,
+  `/communities/${communityId}/calendar`
+);
 
   revalidatePath(`/communities/${communityId}/calendar`);
   redirect(`/communities/${communityId}/calendar`);
@@ -959,12 +956,12 @@ export async function toggleSpark(postId: string) {
     .single();
 
   if (post) {
-    sendPushToUser(
-      post.author_id,
-      "New spark ✦",
-      "Someone sparked your post",
-      `/communities/${post.community_id}`
-    );
+    queuePush(
+  post.author_id,
+  "New reaction",
+  "Someone reacted to your post",
+  `/communities/${post.community_id}`
+);
   }
 
   return { sparked: true };

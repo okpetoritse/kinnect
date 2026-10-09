@@ -65,3 +65,24 @@
   padding: 13px;
   font-weight: 600;
 }
+
+.captionInput {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--background);
+  border-radius: var(--radius-pill);
+  padding: 12px 16px;
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.error {
+  background: var(--coral-tint);
+  color: var(--coral);
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+}

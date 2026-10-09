@@ -177,7 +177,7 @@ export default function StoryViewer({
   className={styles.stageMedia}
   autoPlay
   playsInline
-  preload="metadata"
+  preload="auto"
   onLoadedMetadata={(e) => {
     // Forces browser decoder to render the first frame immediately instead of a blank screen
     if (e.currentTarget.currentTime === 0) {
@@ -198,9 +198,9 @@ export default function StoryViewer({
           </div>
         )}
 
-        {/* {entry.media_url && entry.content_text && (
+                {entry.media_url && entry.content_text && (
           <div className={styles.caption}>{entry.content_text}</div>
-        )} */}
+        )}
 
         {isOwn && sparkerNames.length > 0 && (
           <div className={styles.sparkCountBadge}>

@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendPushToUser } from "@/lib/notifications/sendPush";
+import { queuePush } from "@/lib/notifications/queuePush";
+import { getHandle } from "@/lib/notifications/handle";
 
 export async function getFriendsWithActiveReels() {
   const supabase = await createClient();
@@ -197,7 +199,13 @@ export async function toggleReelSpark(entryId: string) {
 
   if (entry && entry.user_id !== user.id) {
     const name = user.user_metadata?.full_name || "Someone";
-    sendPushToUser(entry.user_id, "New reaction", `${name} reacted to your reel`, "/home");
+   const who = await getHandle(supabase, user.id);
+queuePush(
+  entry.user_id,
+  "New reaction",
+  `${who} reacted to your reel`,
+  "/home"
+);
   }
 
   return { sparked: true };
@@ -357,6 +365,13 @@ export async function sendReelComment(entryId: string, message: string) {
   const { error } = await supabase.from("messages").insert(insertPayload);
 
   if (error) return { error: error.message };
+  const who = await getHandle(supabase, user.id);
+queuePush(
+  entry.user_id,
+  "New comment",
+  `${who} commented on your reel`,
+  `/messages/${user.id}`
+);
   return { success: true };
 }
 

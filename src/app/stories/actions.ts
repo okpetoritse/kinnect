@@ -2,6 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import { queuePush } from "@/lib/notifications/queuePush";
+import { getHandle } from "@/lib/notifications/handle";
 
 export async function createStory(
   contentText: string | null,
@@ -186,10 +188,14 @@ export async function toggleStorySpark(storyId: string) {
 
   const { data: story } = await supabase.from("stories").select("user_id").eq("id", storyId).single();
   if (story && story.user_id !== user.id) {
-    const name = user.user_metadata?.full_name || "Someone";
-    const { sendPushToUser } = await import("@/lib/notifications/sendPush");
-    sendPushToUser(story.user_id, "New reaction", `${name} reacted to your story`, "/home");
-  }
+  const who = await getHandle(supabase, user.id);
+  queuePush(
+    story.user_id,
+    "New reaction",
+    `${who} reacted to your story`,
+    "/home"
+  );
+}
 
   return { sparked: true };
 }
@@ -232,6 +238,14 @@ export async function sendStoryReply(storyId: string, message: string) {
     reply_to_sender_name: "Your story",
     reply_thumbnail_url: story.media_type === "image" ? story.media_url : null,
   });
+
+  const who = await getHandle(supabase, user.id);
+queuePush(
+  story.user_id,
+  "New reply",
+  `${who} replied to your story`,
+  `/messages/${user.id}`
+);
 
   return error ? { error: error.message } : { success: true };
 }

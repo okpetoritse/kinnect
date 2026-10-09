@@ -12,10 +12,11 @@ import {
   sendVoiceBurst,
   sendPing,
   notifyIncomingCall,
-  sendVideoNote,
   logCallMessage,
   markChatActive,
-  deleteMessage
+  deleteMessage,
+  sendMediaCollection,
+  getMessageMediaBatch,
 } from "../actions";
 import {
   blockUser,
@@ -57,7 +58,6 @@ import {
 } from "lucide-react";
 import MediaComposer from "@/components/MediaComposer";
 import MediaBubble from "@/components/MediaBubble";
-import { getMessageMediaBatch } from "../actions";
 
 type Message = {
   id: string;
@@ -100,7 +100,6 @@ function formatLastSeen(iso?: string | null) {
 }
 
 const GROUP_GAP_MS = 5 * 60 * 1000;
-const MAX_VIDEO_NOTE_SECONDS = 30;
 const REPORT_REASONS = [
   { id: "spam", label: "Spam" },
   { id: "harassment", label: "Harassment or bullying" },
@@ -196,9 +195,6 @@ export default function ChatThread({
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const [viewer, setViewer] = useState<{ messageId: string; index: number } | null>(null);
-  const galleryInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const videoGalleryInputRef = useRef<HTMLInputElement>(null);
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null);
   const channelRef = useRef<any>(null);
   const stopTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -208,7 +204,7 @@ export default function ChatThread({
   const recordingStartRef = useRef<number>(0);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordingFailsafeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [showMediaComposer, setShowMediaComposer] = useState(false);
+  const [mediaComposerMode, setMediaComposerMode] = useState<"camera" | "gallery" | null>(null);
   const [mediaByMessage, setMediaByMessage] = useState<Record<string, { url: string; type: "image" | "video" }[]>>({});
   const onlineIds = usePresence(currentUserId);
   const friendIsOnline = onlineIds.has(friendId);
@@ -525,109 +521,7 @@ useEffect(() => {
     setReplyTarget(null);
   }
 
-  async function handleImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    e.target.value = "";
-    setShowAttachMenu(false);
-    setUploading(true);
-
-    const supabase = createClient();
-    const filePath = `${currentUserId}/${Date.now()}-${file.name}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("chat-images")
-      .upload(filePath, file);
-
-    if (uploadError) {
-      console.error(uploadError);
-      setUploading(false);
-      return;
-    }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("chat-images").getPublicUrl(filePath);
-
-    const newMsg: Message = {
-      id: `temp-${Date.now()}`,
-      sender_id: currentUserId,
-      content: null,
-      image_url: publicUrl,
-      created_at: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
-
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "new_message",
-      payload: newMsg,
-    });
-
-    setUploading(false);
-    await sendImageMessage(friendId, publicUrl);
-  }
-
-  async function handleVideoGallerySelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-    setShowAttachMenu(false);
-
-    const objectUrl = URL.createObjectURL(file);
-    const probe = document.createElement("video");
-    probe.preload = "metadata";
-
-    const duration: number = await new Promise((resolve) => {
-      probe.onloadedmetadata = () => resolve(probe.duration);
-      probe.onerror = () => resolve(0);
-      probe.src = objectUrl;
-    });
-    URL.revokeObjectURL(objectUrl);
-
-    if (duration > MAX_VIDEO_NOTE_SECONDS) {
-      alert(`Please pick a video under ${MAX_VIDEO_NOTE_SECONDS} seconds.`);
-      return;
-    }
-
-    setUploading(true);
-    const supabase = createClient();
-    const filePath = `${currentUserId}/vidnote-${Date.now()}-${file.name}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("chat-images")
-      .upload(filePath, file);
-
-    if (uploadError) {
-      console.error(uploadError);
-      setUploading(false);
-      return;
-    }
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("chat-images").getPublicUrl(filePath);
-
-    const newMsg: Message = {
-      id: `temp-${Date.now()}`,
-      sender_id: currentUserId,
-      content: null,
-      video_url: publicUrl,
-      created_at: new Date().toISOString(),
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "new_message",
-      payload: newMsg,
-    });
-
-    setUploading(false);
-    await sendVideoNote(friendId, publicUrl);
-  }
+  
 
   async function handleGifSelect(gifUrl: string) {
     setShowGifPicker(false);
@@ -1030,7 +924,7 @@ useEffect(() => {
                               {msg.reply_thumbnail_url && (
                                 <img src={msg.reply_thumbnail_url} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
                               )}
-                              <div>
+                              <div style={{ minWidth: 0 }}>
                                 <span className={styles.quotedMessageName}>
                                   {msg.reply_to_sender_name}
                                 </span>
@@ -1108,71 +1002,63 @@ useEffect(() => {
           </div>
 
           {showAttachMenu && (
-            <div className={styles.attachMenu}>
-              <button
-                className={styles.attachOption}
-                onClick={() => cameraInputRef.current?.click()}
-              >
-                <Camera size={20} />
-                <span>Camera</span>
-              </button>
-              <button
-                className={styles.attachOption}
-                onClick={() => {
-                  setShowAttachMenu(false);
-                  handleBurst();
-                }}
-              >
-                <span style={{ fontSize: 20 }}>💥</span>
-                <span>Voice Burst</span>
-              </button>
-              <button
-                className={styles.attachOption}
-                onClick={() => galleryInputRef.current?.click()}
-              >
-                <ImageIcon size={20} />
-                <span>Gallery</span>
-              </button>
-              <button
-                className={styles.attachOption}
-                onClick={() => videoGalleryInputRef.current?.click()}
-              >
-                <Video size={20} />
-                <span>Short Video</span>
-              </button>
-                <button
-  className={styles.attachOption}
-  onClick={() => {
-    setShowAttachMenu(false);
-    setShowMediaComposer(true);
-  }}
->
-  <ImageIcon size={20} />
-  <span>Photos & Videos</span>
-</button>
+  <div className={styles.attachMenu}>
+    <button
+      className={styles.attachOption}
+      onClick={() => {
+        setShowAttachMenu(false);
+        setMediaComposerMode("camera");
+      }}
+    >
+      <Camera size={20} />
+      <span>Camera</span>
+    </button>
 
-              <button
-                className={styles.attachOption}
-                onClick={() => {
-                  setShowAttachMenu(false);
-                  setShowGifPicker(true);
-                }}
-              >
-                <span className={styles.gifLabel}>GIF</span>
-                <span>GIF</span>
-              </button>
-              <button
-                className={styles.attachOption}
-                onClick={() => {
-                  setShowAttachMenu(false);
-                  setShowStickers(true);
-                }}
-              >
-                <Smile size={20} />
-                <span>Sticker</span>
-              </button>
-            </div>
-          )}
+    <button
+      className={styles.attachOption}
+      onClick={() => {
+        setShowAttachMenu(false);
+        setMediaComposerMode("gallery");
+      }}
+    >
+      <ImageIcon size={20} />
+      <span>Gallery</span>
+    </button>
+
+    <button
+      className={styles.attachOption}
+      onClick={() => {
+        setShowAttachMenu(false);
+        handleBurst();
+      }}
+    >
+      <span style={{ fontSize: 20 }}>💥</span>
+      <span>Voice Burst</span>
+    </button>
+
+    <button
+      className={styles.attachOption}
+      onClick={() => {
+        setShowAttachMenu(false);
+        setShowGifPicker(true);
+      }}
+    >
+      <span className={styles.gifLabel}>GIF</span>
+      <span>GIF</span>
+    </button>
+
+    <button
+      className={styles.attachOption}
+      onClick={() => {
+        setShowAttachMenu(false);
+        setShowStickers(true);
+      }}
+    >
+      <Smile size={20} />
+      <span>Sticker</span>
+    </button>
+  </div>
+)}
 
           {showStickers && (
             <div className={styles.stickerPicker}>
@@ -1203,28 +1089,7 @@ useEffect(() => {
           )}
 
           <div className={styles.composer}>
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*,video/*"
-              capture="environment"
-              className={styles.imageInput}
-              onChange={handleImageSelect}
-            />
-            <input
-              ref={galleryInputRef}
-              type="file"
-              accept="image/*"
-              className={styles.imageInput}
-              onChange={handleImageSelect}
-            />
-            <input
-              ref={videoGalleryInputRef}
-              type="file"
-              accept="video/*"
-              className={styles.imageInput}
-              onChange={handleVideoGallerySelect}
-            />
+            
             {!recording && (
               <>
                 <button
@@ -1330,35 +1195,36 @@ useEffect(() => {
         </div>
       )}
 
-            {showMediaComposer && (
-        <MediaComposer
-          friendId={friendId}
-          onClose={() => setShowMediaComposer(false)}
-          onSent={(messageId, caption, items) => {
-            setShowMediaComposer(false);
+      {mediaComposerMode && (
+  <MediaComposer
+    mode={mediaComposerMode}
+    send={(caption, items) => sendMediaCollection(friendId, caption, items)}
+    onClose={() => setMediaComposerMode(null)}
+    onSent={(messageId, caption, items) => {
+      setMediaComposerMode(null);
 
-            const newMsg: Message = {
-              id: messageId,
-              sender_id: currentUserId,
-              content: caption || null,
-              created_at: new Date().toISOString(),
-            };
+      const newMsg: Message = {
+        id: messageId,
+        sender_id: currentUserId,
+        content: caption || null,
+        created_at: new Date().toISOString(),
+      };
 
-            setMessages((prev) => [...prev, newMsg]);
+      setMessages((prev) => [...prev, newMsg]);
 
-            setMediaByMessage((prev) => ({
-              ...prev,
-              [messageId]: items,
-            }));
+      setMediaByMessage((prev) => ({
+        ...prev,
+        [messageId]: items,
+      }));
 
-            channelRef.current?.send({
-              type: "broadcast",
-              event: "new_message",
-              payload: newMsg,
-            });
-          }}
-        />
-      )}
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "new_message",
+        payload: newMsg,
+      });
+    }}
+  />
+)}
 
             {viewer && messages.find((m) => m.id === viewer.messageId) && mediaByMessage[viewer.messageId] && (() => {
         const viewerMsg = messages.find((m) => m.id === viewer.messageId)!;

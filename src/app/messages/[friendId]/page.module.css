@@ -47,6 +47,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  overflow-x: hidden;
 }
 
 .bubbleRow {
@@ -64,6 +65,9 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   font-size: 14px;
+  min-width: 0;
+overflow-wrap: anywhere;
+word-break: break-word;
 }
 
 .bubbleMine {
@@ -74,6 +78,8 @@
 
 .messageWrapper {
   position: relative;
+  min-width: 0;
+max-width: 100%;
 }
 
 .empty {
@@ -272,6 +278,8 @@
   -webkit-user-select: none;
   user-select: none;
   touch-action: pan-y;
+  min-width: 0;
+max-width: 100%;
 }
 
 .messageRowMine {
@@ -927,6 +935,8 @@
   padding: 4px 8px;
   margin-bottom: 6px;
   font-size: 11px;
+  min-width: 0;
+max-width: 100%;
 }
 
 .quotedMessageName {
@@ -1037,7 +1047,7 @@
   position: relative;
   border-radius: 16px;
   overflow: hidden;
-  max-width: 240px;
+  max-width: min(240px, 78vw);
   box-shadow: var(--shadow-sm);
 }
 

@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendPushToUser } from "@/lib/notifications/sendPush";
+import { queuePush } from "@/lib/notifications/queuePush";
+import { getHandle } from "@/lib/notifications/handle";
 
 export async function searchUsers(query: string) {
   const supabase = await createClient();
@@ -79,7 +81,13 @@ export async function sendFriendRequest(receiverId: string) {
   if (error) return { error: error.message };
 
   revalidatePath("/friends");
-  sendPushToUser(receiverId, "New friend request", "Someone wants to connect with you", "/friends");
+ const who = await getHandle(supabase, user.id);
+queuePush(
+  receiverId,
+  "New friend request",
+  `${who} wants to connect with you`,
+  "/friends"
+);
   return { success: true };
 }
 

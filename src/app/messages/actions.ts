@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendPushToUser } from "@/lib/notifications/sendPush";
+import { notifyNewMessage } from "@/lib/notifications/notifyNewMessage";
 
 export async function getMessages(friendId: string) {
   const supabase = await createClient();
@@ -100,21 +101,7 @@ export async function sendMessage(
 
   revalidatePath(`/messages/${friendId}`);
 
-  const { data: activeViewers } = await supabase
-    .from("active_chat_views")
-    .select("user_id")
-    .eq("chat_with_user_id", friendId)
-    .eq("user_id", friendId)
-    .gte("last_seen_at", new Date(Date.now() - 15000).toISOString())
-    .maybeSingle();
-
-  if (!activeViewers) {
-    try {
-      await sendPushToUser(friendId, "New message", content.slice(0, 100), `/messages/${user.id}`);
-    } catch (err) {
-      console.error("Failed to send push notification:", err);
-    }
-  }
+    notifyNewMessage(user.id, friendId, content.slice(0, 100));
 
   return { success: true };
 }
@@ -172,6 +159,8 @@ export async function sendImageMessage(friendId: string, imageUrl: string) {
   if (error) return { error: error.message };
 
   revalidatePath(`/messages/${friendId}`);
+  notifyNewMessage(user.id, friendId, "📷 Photo");
+
   return { success: true };
 }
 
@@ -190,6 +179,7 @@ export async function sendImageMessage(friendId: string, imageUrl: string) {
 
   if (error) return { error: error.message };
   revalidatePath(`/messages/${friendId}`);
+  notifyNewMessage(user.id, friendId, "🎥 Video");
   return { success: true };
 }
 
@@ -244,6 +234,7 @@ export async function sendStickerMessage(friendId: string, stickerId: string) {
   if (error) return { error: error.message };
 
   revalidatePath(`/messages/${friendId}`);
+  notifyNewMessage(user.id, friendId, "Sent a sticker");
   return { success: true };
 }
 
@@ -299,6 +290,7 @@ export async function sendVoiceNoteMessage(friendId: string, audioUrl: string, d
   if (error) return { error: error.message };
 
   revalidatePath(`/messages/${friendId}`);
+  notifyNewMessage(user.id, friendId, "🎤 Voice message");
   return { success: true };
 }
 
@@ -420,6 +412,7 @@ export async function sendPing(friendId: string, pingLabel: string) {
 
   if (error) return { error: error.message };
   revalidatePath(`/messages/${friendId}`);
+  notifyNewMessage(user.id, friendId, pingLabel);
   return { success: true };
 }
 
@@ -473,6 +466,7 @@ export async function sendVoiceBurst(friendId: string, audioUrl: string, duratio
 
   if (error) return { error: error.message };
   revalidatePath(`/messages/${friendId}`);
+  notifyNewMessage(user.id, friendId, "💥 Voice burst");
   return { success: true };
 }
 
@@ -576,6 +570,15 @@ export async function sendMediaCollection(
   if (mediaError) return { error: mediaError.message };
 
   revalidatePath(`/messages/${friendId}`);
+    notifyNewMessage(
+    user.id,
+    friendId,
+    mediaItems.length === 1
+      ? mediaItems[0].type === "video"
+        ? "🎥 Video"
+        : "📷 Photo"
+      : `📷 ${mediaItems.length} photos & videos`
+  );
   return { success: true, messageId: message.id };
 }
 
