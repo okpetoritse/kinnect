@@ -425,44 +425,83 @@ export async function createTask(formData: FormData) {
 
 export async function claimTask(taskId: string) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in" };
+  const { data, error } = await supabase.rpc(
+    "claim_community_task",
+    { p_task_id: taskId }
+  );
 
-  const { error } = await supabase
-    .from("community_tasks")
-    .update({ assigned_to: user.id, updated_at: new Date().toISOString() })
-    .eq("id", taskId);
+  console.info("[claimTask diagnostic]", {
+  taskId,
+  returnedData: data,
+  rpcError: error?.message ?? null,
+});
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!data) {
+    return { error: "Task is already claimed or unavailable" };
+  }
+
   return { success: true };
 }
 
 export async function unclaimTask(taskId: string) {
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from("community_tasks")
-    .update({ assigned_to: null, updated_at: new Date().toISOString() })
-    .eq("id", taskId);
+  const { data, error } = await supabase.rpc(
+    "unclaim_community_task",
+    { p_task_id: taskId }
+  );
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!data) {
+    return {
+      error: "Task not found or not assigned to you",
+    };
+  }
+
   return { success: true };
 }
 
-export async function updateTaskStatus(taskId: string, status: string) {
+export async function updateTaskStatus(
+  taskId: string,
+  status: string
+) {
+  if (
+    status !== "todo" &&
+    status !== "in_progress" &&
+    status !== "done"
+  ) {
+    return { error: "Invalid task status" };
+  }
+
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from("community_tasks")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", taskId);
+  const { data, error } = await supabase.rpc(
+    "update_community_task_status",
+    {
+      p_task_id: taskId,
+      p_status: status,
+    }
+  );
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!data) {
+    return { error: "Task not found or unavailable" };
+  }
+
   return { success: true };
 }
+
 export async function getCommunityPolls(communityId: string) {
   const supabase = await createClient();
 
@@ -647,17 +686,39 @@ export async function addLinkResource(formData: FormData) {
   redirect(`/communities/${communityId}/resources`);
 }
 
-export async function deleteResource(resourceId: string, communityId: string) {
+export async function deleteResource(
+  resourceId: string,
+  communityId: string
+) {
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "Not logged in" };
+  }
+
+  const { data, error } = await supabase
     .from("community_resources")
     .delete()
-    .eq("id", resourceId);
+    .eq("id", resourceId)
+    .eq("community_id", communityId)
+    .eq("added_by", user.id)
+    .select("id");
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    return { error: "Resource not found or you do not have permission" };
+  }
 
   revalidatePath(`/communities/${communityId}/resources`);
+
   return { success: true };
 }
 export async function getCommunityLeaderboard(communityId: string) {

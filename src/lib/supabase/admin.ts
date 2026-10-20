@@ -1,16 +1,20 @@
-import { createClient } from "@supabase/supabase-js";
+import "server-only";
+
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export function createAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url || !key || key.length < 100) {
-    throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY is missing or malformed — check .env.local and Vercel env vars"
-    );
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error("Supabase server configuration is missing.");
   }
 
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
+  return createSupabaseClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+      detectSessionInUrl: false,
+    },
   });
 }

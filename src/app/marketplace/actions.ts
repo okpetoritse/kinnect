@@ -149,31 +149,69 @@ const { data: sellerProfile } = await supabase
   redirect(`/marketplace/${listing!.id}`);
 }
 
-export async function markListingSold(id: string) {
+  export async function markListingSold(id: string) {
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "Not logged in" };
+  }
+
+  const { data, error } = await supabase
     .from("marketplace_listings")
     .update({ status: "sold" })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("seller_id", user.id)
+    .select("id");
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    return { error: "Listing not found or you do not have permission" };
+  }
 
   revalidatePath(`/marketplace/${id}`);
+  revalidatePath("/marketplace");
+
   return { success: true };
 }
 
 export async function deleteListing(id: string) {
   const supabase = await createClient();
 
-  const { error } = await supabase
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return { error: "Not logged in" };
+  }
+
+  const { data, error } = await supabase
     .from("marketplace_listings")
     .update({ status: "removed" })
-    .eq("id", id);
+    .eq("id", id)
+    .eq("seller_id", user.id)
+    .select("id");
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
 
+  if (!data || data.length === 0) {
+    return { error: "Listing not found or you do not have permission" };
+  }
+
+  revalidatePath(`/marketplace/${id}`);
   revalidatePath("/marketplace");
+
   return { success: true };
 }
 

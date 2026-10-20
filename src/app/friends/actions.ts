@@ -97,14 +97,35 @@ export async function respondToFriendRequest(
 ) {
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from("friend_requests")
-    .update({ status: accept ? "accepted" : "declined" })
-    .eq("id", requestId);
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  if (error) return { error: error.message };
+  if (authError || !user) {
+    return { error: "Not logged in" };
+  }
+
+  const { data, error } = await supabase
+    .from("friend_requests")
+    .update({
+      status: accept ? "accepted" : "declined",
+    })
+    .eq("id", requestId)
+    .eq("receiver_id", user.id)
+    .eq("status", "pending")
+    .select("id");
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  if (!data || data.length === 0) {
+    return { error: "Request not found or already handled" };
+  }
 
   revalidatePath("/friends");
+
   return { success: true };
 }
 

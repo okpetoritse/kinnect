@@ -49,6 +49,7 @@ export default function TaskBoard({
 }) {
   const [tasks, setTasks] = useState(initialTasks);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -82,31 +83,98 @@ export default function TaskBoard({
   }
 
   async function handleClaim(task: Task) {
+  setActionError(null);
+
+  try {
+    const result = await claimTask(task.id);
+
+    if ("error" in result) {
+     setActionError(
+  result.error ?? "Could not claim this task. Please try again."
+);
+      return;
+    }
+
     const updated: Task = {
       ...task,
       assigned_to: currentUserId,
-      assignee: { id: currentUserId, full_name: currentUserName },
+      assignee: {
+        id: currentUserId,
+        full_name: currentUserName,
+      },
     };
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? updated : t))
+    );
+
     broadcastUpdate(updated);
-    await claimTask(task.id);
+  } catch {
+    setActionError("Could not claim this task. Please try again.");
   }
+}
 
   async function handleUnclaim(task: Task) {
-    const updated: Task = { ...task, assigned_to: null, assignee: null };
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+  setActionError(null);
+
+  try {
+    const result = await unclaimTask(task.id);
+
+    if ("error" in result) {
+      setActionError(
+  result.error ?? "Could not unclaim this task. Please try again."
+);
+      return;
+    }
+
+    const updated: Task = {
+      ...task,
+      assigned_to: null,
+      assignee: null,
+    };
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? updated : t))
+    );
+
     broadcastUpdate(updated);
-    await unclaimTask(task.id);
+  } catch {
+    setActionError("Could not unclaim this task. Please try again.");
   }
+}
+
 
   async function handleAdvance(task: Task) {
-    const nextStatus = NEXT_STATUS[task.status];
-    if (!nextStatus) return;
-    const updated: Task = { ...task, status: nextStatus };
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+  const nextStatus = NEXT_STATUS[task.status];
+
+  if (!nextStatus) return;
+
+  setActionError(null);
+
+  try {
+    const result = await updateTaskStatus(task.id, nextStatus);
+
+    if ("error" in result) {
+      setActionError(
+  result.error ?? "Could not update this task. Please try again."
+);
+      return;
+    }
+
+    const updated: Task = {
+      ...task,
+      status: nextStatus,
+    };
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? updated : t))
+    );
+
     broadcastUpdate(updated);
-    await updateTaskStatus(task.id, nextStatus);
+  } catch {
+    setActionError("Could not update this task. Please try again.");
   }
+}
 
   // Separate completed tasks and sort newest-first
   const completedTasks = tasks
@@ -205,6 +273,14 @@ export default function TaskBoard({
 
   return (
     <div className={styles.boardWrapper}>
+      {actionError && (
+  <p
+    role="alert"
+    className={styles.actionError}
+  >
+    {actionError}
+  </p>
+)}
       <div className={styles.columns}>
         {COLUMNS.map((col) => {
           const columnTasks = tasks.filter((t) => t.status === col.key);

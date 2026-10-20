@@ -2,32 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 type CallState = "idle" | "calling" | "ringing" | "connected";
 type CallStatus = "completed" | "missed" | "declined";
 
-const ICE_SERVERS = [
+const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.relay.metered.ca:80" },
-  {
-    urls: "turn:global.relay.metered.ca:80",
-    username: "3f50aae364ede758a395e1e8",
-    credential: "ZKn1H9o3Tu/gHTdm",
-  },
-  {
-    urls: "turn:global.relay.metered.ca:80?transport=tcp",
-    username: "3f50aae364ede758a395e1e8",
-    credential: "ZKn1H9o3Tu/gHTdm",
-  },
-  {
-    urls: "turn:global.relay.metered.ca:443",
-    username: "3f50aae364ede758a395e1e8",
-    credential: "ZKn1H9o3Tu/gHTdm",
-  },
-  {
-    urls: "turns:global.relay.metered.ca:443?transport=tcp",
-    username: "3f50aae364ede758a395e1e8",
-    credential: "ZKn1H9o3Tu/gHTdm",
-  },
 ];
 
 export function useDMCall(
@@ -50,10 +31,10 @@ export function useDMCall(
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingOfferRef = useRef<any>(null);
+  const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
   const wasConnectedRef = useRef(false);
   const durationRef = useRef(0);
 
@@ -168,7 +149,65 @@ function stopRingback() {
   ringbackSourceRef.current = null;
 }
 
-  function createPeerConnection() {
+  async function loadCallIceServers(): Promise<RTCIceServer[]> {
+  let response: Response;
+
+  try {
+    response = await fetch(
+      `/api/turn-credentials?friendId=${encodeURIComponent(friendId)}`,
+      {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+      }
+    );
+  } catch (error) {
+    console.warn(
+      "[TURN] Could not reach the credential endpoint; using the legacy ICE configuration.",
+      error
+    );
+
+    return ICE_SERVERS as RTCIceServer[];
+  }
+
+  // Do not bypass an explicit authentication or permission rejection.
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("You are not authorized to start this call.");
+  }
+
+  // Keep the old call path available while server configuration is being tested.
+  if (!response.ok) {
+    console.warn(
+      `[TURN] Credential endpoint returned ${response.status}; using the legacy ICE configuration.`
+    );
+
+    return ICE_SERVERS as RTCIceServer[];
+  }
+
+  try {
+    const result: unknown = await response.json();
+
+    if (!Array.isArray(result) || result.length === 0) {
+      console.warn(
+        "[TURN] Credential endpoint returned an invalid configuration; using the legacy ICE configuration."
+      );
+
+      return ICE_SERVERS as RTCIceServer[];
+    }
+
+    return result as RTCIceServer[];
+  } catch (error) {
+    console.warn(
+      "[TURN] Could not parse the ICE configuration; using the legacy ICE configuration.",
+      error
+    );
+
+    return ICE_SERVERS as RTCIceServer[];
+  }
+}
+
+  async function createPeerConnection(): Promise<RTCPeerConnection> {
+    const iceServers = await loadCallIceServers();
     if (pcRef.current) {
       pcRef.current.close();
       pcRef.current = null;
@@ -179,7 +218,7 @@ function stopRingback() {
     }
     remoteStreamRef.current = null;
 
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers });
 
     localStreamRef.current?.getTracks().forEach((track) => {
       pc.addTrack(track, localStreamRef.current!);
@@ -244,7 +283,7 @@ function stopRingback() {
     const channel = supabase.channel(roomName());
 
     channel
-      .on("broadcast", { event: "call-offer" }, async ({ payload }: any) => {
+      .on("broadcast", { event: "call-offer" }, async ({ payload }) => {
         if (payload.from === currentUserId) return;
         pendingOfferRef.current = payload.offer;
         setCallerName(payload.callerName);
@@ -252,7 +291,7 @@ function stopRingback() {
         setCallState("ringing");
         startRinging();
       })
-      .on("broadcast", { event: "call-answer" }, async ({ payload }: any) => {
+      .on("broadcast", { event: "call-answer" }, async ({ payload }) => {
         if (payload.from === currentUserId) return;
         const pc = pcRef.current;
         if (pc && pc.signalingState === "have-local-offer") {
@@ -264,7 +303,7 @@ function stopRingback() {
           startDurationTimer();
         }
       })
-      .on("broadcast", { event: "call-ice" }, async ({ payload }: any) => {
+      .on("broadcast", { event: "call-ice" }, async ({ payload }) => {
         if (payload.from === currentUserId) return;
         try {
           if (pcRef.current) {
@@ -274,7 +313,7 @@ function stopRingback() {
           console.error(err);
         }
       })
-      .on("broadcast", { event: "call-end" }, ({ payload }: any) => {
+      .on("broadcast", { event: "call-end" }, ({ payload }) => {
         if (payload.from === currentUserId) return;
         cleanup();
         setCallState("idle");
@@ -352,7 +391,7 @@ function stopRingback() {
         localVideoElRef.current.srcObject = stream;
       }
 
-      const pc = createPeerConnection();
+      const pc = await createPeerConnection();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -375,9 +414,11 @@ function stopRingback() {
         cleanup();
         setCallState("idle");
       }, 30000);
-    } catch (err: any) {
-      console.error("startCall failed:", err);
-      setCallError(err?.message || "Could not start the call");
+    } catch (err) {
+  console.error("startCall failed:", err);
+  setCallError(
+    err instanceof Error ? err.message : "Could not start the call"
+  );
       cleanup();
       setCallState("idle");
     }
@@ -401,7 +442,7 @@ function stopRingback() {
         localVideoElRef.current.srcObject = stream;
       }
 
-      const pc = createPeerConnection();
+      const pc = await createPeerConnection();
       await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -415,9 +456,11 @@ function stopRingback() {
       wasConnectedRef.current = true;
       setCallState("connected");
       startDurationTimer();
-    } catch (err: any) {
-      console.error("acceptCall failed:", err);
-      setCallError(err?.message || "Could not connect the call");
+    } catch (err) {
+  console.error("acceptCall failed:", err);
+  setCallError(
+    err instanceof Error ? err.message : "Could not connect the call"
+  );
       cleanup();
       setCallState("idle");
     }
@@ -460,9 +503,13 @@ function stopRingback() {
    function toggleSpeaker() {
     if (remoteAudioRef.current && "setSinkId" in remoteAudioRef.current) {
       const newState = !speakerOn;
-      (remoteAudioRef.current as any)
-        .setSinkId(newState ? "default" : "communications")
-        .catch(() => {});
+      (
+  remoteAudioRef.current as HTMLAudioElement & {
+    setSinkId: (sinkId: string) => Promise<void>;
+  }
+)
+  .setSinkId(newState ? "default" : "communications")
+  .catch(() => {});
       setSpeakerOn(newState);
     } else {
       setSpeakerOn((prev) => !prev);

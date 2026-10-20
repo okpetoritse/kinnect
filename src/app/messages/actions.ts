@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendPushToUser } from "@/lib/notifications/sendPush";
 import { notifyNewMessage } from "@/lib/notifications/notifyNewMessage";
+import { assertCanMessage } from "@/lib/messaging/assertCanMessage";
 
 export async function getMessages(friendId: string) {
   const supabase = await createClient();
@@ -40,115 +41,64 @@ export async function sendMessage(
   friendId: string,
   content: string,
   replyTo?: {
-  id: string;
-  content: string;
-  senderName: string;
-  thumbnailUrl?: string | null;
-}
+    id: string;
+    content: string;
+    senderName: string;
+    thumbnailUrl?: string | null;
+  }
 ) {
+  const text = content.trim();
+
+  if (!text) {
+    return { error: "Invalid message" };
+  }
+
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user || !content.trim()) return { error: "Invalid message" };
+  const guard = await assertCanMessage(supabase, friendId);
 
-  const { data: blocked } = await supabase
-    .from("blocked_users")
-    .select("id")
-    .or(
-      `and(blocker_id.eq.${user.id},blocked_id.eq.${friendId}),and(blocker_id.eq.${friendId},blocked_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (blocked) {
-    return { error: "You can't message this user" };
+  if (!guard.ok) {
+    return { error: guard.error };
   }
 
-  const { data: friendship } = await supabase
-    .from("friend_requests")
-    .select("id")
-    .eq("status", "accepted")
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  const { data: listingConvo } = await supabase
-    .from("messages")
-    .select("id")
-    .not("listing_id", "is", null)
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (!friendship && !listingConvo) {
-    return { error: "You can only message friends, or reply about a listing" };
-  }
+  const { user } = guard;
 
   const { error } = await supabase.from("messages").insert({
-  sender_id: user.id,
-  receiver_id: friendId,
-  content: content.trim(),
-  reply_to_id: replyTo?.id || null,
-  reply_to_content: replyTo?.content || null,
-  reply_to_sender_name: replyTo?.senderName || null,
-  reply_thumbnail_url: replyTo?.thumbnailUrl || null, // <--- Add this
-});
+    sender_id: user.id,
+    receiver_id: friendId,
+    content: text,
+    reply_to_id: replyTo?.id || null,
+    reply_to_content: replyTo?.content || null,
+    reply_to_sender_name: replyTo?.senderName || null,
+    reply_thumbnail_url: replyTo?.thumbnailUrl || null,
+  });
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
 
   revalidatePath(`/messages/${friendId}`);
 
-    notifyNewMessage(user.id, friendId, content.slice(0, 100));
+  notifyNewMessage(user.id, friendId, text.slice(0, 100));
 
   return { success: true };
 }
 
 
 
-export async function sendImageMessage(friendId: string, imageUrl: string) {
+export async function sendImageMessage(
+  friendId: string,
+  imageUrl: string
+) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in" };
+  const guard = await assertCanMessage(supabase, friendId);
 
-  const { data: blocked } = await supabase
-    .from("blocked_users")
-    .select("id")
-    .or(
-      `and(blocker_id.eq.${user.id},blocked_id.eq.${friendId}),and(blocker_id.eq.${friendId},blocked_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (blocked) {
-    return { error: "You can't message this user" };
+  if (!guard.ok) {
+    return { error: guard.error };
   }
 
-  const { data: friendship } = await supabase
-    .from("friend_requests")
-    .select("id")
-    .eq("status", "accepted")
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  const { data: listingConvo } = await supabase
-    .from("messages")
-    .select("id")
-    .not("listing_id", "is", null)
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (!friendship && !listingConvo) {
-    return { error: "You can only message friends, or reply about a listing" };
-  }
+  const { user } = guard;
 
   const { error } = await supabase.from("messages").insert({
     sender_id: user.id,
@@ -156,20 +106,30 @@ export async function sendImageMessage(friendId: string, imageUrl: string) {
     image_url: imageUrl,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
 
   revalidatePath(`/messages/${friendId}`);
+
   notifyNewMessage(user.id, friendId, "📷 Photo");
 
   return { success: true };
 }
 
-  export async function sendVideoNote(friendId: string, videoUrl: string) {
+export async function sendVideoNote(
+  friendId: string,
+  videoUrl: string
+) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not logged in" };
+
+  const guard = await assertCanMessage(supabase, friendId);
+
+  if (!guard.ok) {
+    return { error: guard.error };
+  }
+
+  const { user } = guard;
 
   const { error } = await supabase.from("messages").insert({
     sender_id: user.id,
@@ -177,53 +137,29 @@ export async function sendImageMessage(friendId: string, imageUrl: string) {
     video_url: videoUrl,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
   revalidatePath(`/messages/${friendId}`);
   notifyNewMessage(user.id, friendId, "🎥 Video");
+
   return { success: true };
 }
 
-export async function sendStickerMessage(friendId: string, stickerId: string) {
+export async function sendStickerMessage(
+  friendId: string,
+  stickerId: string
+) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in" };
+  const guard = await assertCanMessage(supabase, friendId);
 
-  const { data: blocked } = await supabase
-    .from("blocked_users")
-    .select("id")
-    .or(
-      `and(blocker_id.eq.${user.id},blocked_id.eq.${friendId}),and(blocker_id.eq.${friendId},blocked_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (blocked) {
-    return { error: "You can't message this user" };
+  if (!guard.ok) {
+    return { error: guard.error };
   }
 
-  const { data: friendship } = await supabase
-    .from("friend_requests")
-    .select("id")
-    .eq("status", "accepted")
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  const { data: listingConvo } = await supabase
-    .from("messages")
-    .select("id")
-    .not("listing_id", "is", null)
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (!friendship && !listingConvo) {
-    return { error: "You can only message friends, or reply about a listing" };
-  }
+  const { user } = guard;
 
   const { error } = await supabase.from("messages").insert({
     sender_id: user.id,
@@ -231,54 +167,30 @@ export async function sendStickerMessage(friendId: string, stickerId: string) {
     sticker_id: stickerId,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
 
   revalidatePath(`/messages/${friendId}`);
   notifyNewMessage(user.id, friendId, "Sent a sticker");
+
   return { success: true };
 }
 
-export async function sendVoiceNoteMessage(friendId: string, audioUrl: string, durationSeconds: number) {
+export async function sendVoiceNoteMessage(
+  friendId: string,
+  audioUrl: string,
+  durationSeconds: number
+) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) return { error: "Not logged in" };
+  const guard = await assertCanMessage(supabase, friendId);
 
-  const { data: blocked } = await supabase
-    .from("blocked_users")
-    .select("id")
-    .or(
-      `and(blocker_id.eq.${user.id},blocked_id.eq.${friendId}),and(blocker_id.eq.${friendId},blocked_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (blocked) {
-    return { error: "You can't message this user" };
+  if (!guard.ok) {
+    return { error: guard.error };
   }
 
-  const { data: friendship } = await supabase
-    .from("friend_requests")
-    .select("id")
-    .eq("status", "accepted")
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  const { data: listingConvo } = await supabase
-    .from("messages")
-    .select("id")
-    .not("listing_id", "is", null)
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
-
-  if (!friendship && !listingConvo) {
-    return { error: "You can only message friends, or reply about a listing" };
-  }
+  const { user } = guard;
 
   const { error } = await supabase.from("messages").insert({
     sender_id: user.id,
@@ -287,10 +199,13 @@ export async function sendVoiceNoteMessage(friendId: string, audioUrl: string, d
     audio_duration: durationSeconds,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
 
   revalidatePath(`/messages/${friendId}`);
   notifyNewMessage(user.id, friendId, "🎤 Voice message");
+
   return { success: true };
 }
 
@@ -338,13 +253,13 @@ export async function getMessagesFriendsPaginated(cursor?: string) {
     return { friends: [], nextCursor: null };
   }
 
-  const friends = data.map((row: any) => {
+  const friends = data.map((row) => {
     const isSender = row.sender_id === user.id;
     const raw = isSender ? row.receiver : row.sender;
     return Array.isArray(raw) ? raw[0] : raw;
   });
 
-  const friendIds = friends.map((f: any) => f.id);
+  const friendIds = friends.map((f) => f.id);
   const { data: recentMessages } = friendIds.length
     ? await supabase
         .from("messages")
@@ -358,7 +273,7 @@ export async function getMessagesFriendsPaginated(cursor?: string) {
     : { data: [] };
 
   const lastMessageByFriend: Record<string, { preview: string; time: string }> = {};
-  (recentMessages || []).forEach((m: any) => {
+  (recentMessages || []).forEach((m) => {
     const otherId = m.sender_id === user.id ? m.receiver_id : m.sender_id;
     if (lastMessageByFriend[otherId]) return;
 
@@ -372,13 +287,13 @@ export async function getMessagesFriendsPaginated(cursor?: string) {
     lastMessageByFriend[otherId] = { preview, time: m.created_at };
   });
 
-  const friendsWithPreview = friends.map((f: any) => ({
+  const friendsWithPreview = friends.map((f) => ({
     ...f,
     lastMessagePreview: lastMessageByFriend[f.id]?.preview || "",
     lastMessageTime: lastMessageByFriend[f.id]?.time || null,
   }));
 
-  const sortedFriends = [...friendsWithPreview].sort((a: any, b: any) => {
+  const sortedFriends = [...friendsWithPreview].sort((a, b) => {
     const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
     const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
     return timeB - timeA;
@@ -389,19 +304,19 @@ export async function getMessagesFriendsPaginated(cursor?: string) {
   return { friends: sortedFriends, nextCursor };
 }
 
-export async function sendPing(friendId: string, pingLabel: string) {
+export async function sendPing(
+  friendId: string,
+  pingLabel: string
+) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not logged in" };
 
-  const { data: blocked } = await supabase
-    .from("blocked_users")
-    .select("id")
-    .or(`and(blocker_id.eq.${user.id},blocked_id.eq.${friendId}),and(blocker_id.eq.${friendId},blocked_id.eq.${user.id})`)
-    .maybeSingle();
-  if (blocked) return { error: "You can't message this user" };
+  const guard = await assertCanMessage(supabase, friendId);
+
+  if (!guard.ok) {
+    return { error: guard.error };
+  }
+
+  const { user } = guard;
 
   const { error } = await supabase.from("messages").insert({
     sender_id: user.id,
@@ -410,9 +325,13 @@ export async function sendPing(friendId: string, pingLabel: string) {
     ping_label: pingLabel,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
   revalidatePath(`/messages/${friendId}`);
   notifyNewMessage(user.id, friendId, pingLabel);
+
   return { success: true };
 }
 
@@ -449,12 +368,20 @@ export async function getMessageReactions(messageIds: string[]) {
   return data || [];
 }
 
-export async function sendVoiceBurst(friendId: string, audioUrl: string, durationSeconds: number) {
+export async function sendVoiceBurst(
+  friendId: string,
+  audioUrl: string,
+  durationSeconds: number
+) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not logged in" };
+
+  const guard = await assertCanMessage(supabase, friendId);
+
+  if (!guard.ok) {
+    return { error: guard.error };
+  }
+
+  const { user } = guard;
 
   const { error } = await supabase.from("messages").insert({
     sender_id: user.id,
@@ -464,21 +391,39 @@ export async function sendVoiceBurst(friendId: string, audioUrl: string, duratio
     is_burst: true,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
   revalidatePath(`/messages/${friendId}`);
   notifyNewMessage(user.id, friendId, "💥 Voice burst");
+
   return { success: true };
 }
 
 export async function notifyIncomingCall(friendId: string) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return;
+
+  const guard = await assertCanMessage(supabase, friendId);
+
+  if (!guard.ok) {
+    return { error: guard.error };
+  }
+
+  const { user } = guard;
+
   const name = user.user_metadata?.full_name || "Someone";
-  await sendPushToUser(friendId, "Incoming call 📞", `${name} is calling you`, `/messages/${user.id}`);
+
+  await sendPushToUser(
+    friendId,
+    "Incoming call 📞",
+    `${name} is calling you`,
+    `/messages/${user.id}`
+  );
+
+  return { success: true };
 }
+
 export async function logCallMessage(
   friendId: string,
   callType: "audio" | "video",
@@ -486,10 +431,14 @@ export async function logCallMessage(
   duration: number
 ) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not logged in" };
+
+  const guard = await assertCanMessage(supabase, friendId);
+
+  if (!guard.ok) {
+    return { error: guard.error };
+  }
+
+  const { user } = guard;
 
   const { error } = await supabase.from("messages").insert({
     sender_id: user.id,
@@ -499,8 +448,12 @@ export async function logCallMessage(
     call_duration: duration,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    return { error: error.message };
+  }
+
   revalidatePath(`/messages/${friendId}`);
+
   return { success: true };
 }
 
@@ -524,24 +477,25 @@ export async function sendMediaCollection(
   friendId: string,
   caption: string,
   mediaItems: { url: string; type: "image" | "video" }[],
-  replyTo?: { id: string; content: string; senderName: string }
+  replyTo?: {
+    id: string;
+    content: string;
+    senderName: string;
+  }
 ) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not logged in" };
 
-  const { data: friendship } = await supabase
-    .from("friend_requests")
-    .select("id")
-    .eq("status", "accepted")
-    .or(
-      `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
-    )
-    .maybeSingle();
+  const guard = await assertCanMessage(supabase, friendId);
 
-  if (!friendship) return { error: "You can only message friends" };
+  if (!guard.ok) {
+    return { error: guard.error };
+  }
+
+  const { user } = guard;
+
+  if (!mediaItems.length) {
+    return { error: "No media selected" };
+  }
 
   const { data: message, error } = await supabase
     .from("messages")
@@ -556,21 +510,28 @@ export async function sendMediaCollection(
     .select("id")
     .single();
 
-  if (error || !message) return { error: error?.message || "Could not send" };
+  if (error || !message) {
+    return { error: error?.message || "Could not send" };
+  }
 
-  const { error: mediaError } = await supabase.from("message_media").insert(
-    mediaItems.map((m, i) => ({
-      message_id: message.id,
-      media_url: m.url,
-      media_type: m.type,
-      position: i,
-    }))
-  );
+  const { error: mediaError } = await supabase
+    .from("message_media")
+    .insert(
+      mediaItems.map((media, index) => ({
+        message_id: message.id,
+        media_url: media.url,
+        media_type: media.type,
+        position: index,
+      }))
+    );
 
-  if (mediaError) return { error: mediaError.message };
+  if (mediaError) {
+    return { error: mediaError.message };
+  }
 
   revalidatePath(`/messages/${friendId}`);
-    notifyNewMessage(
+
+  notifyNewMessage(
     user.id,
     friendId,
     mediaItems.length === 1
@@ -579,6 +540,7 @@ export async function sendMediaCollection(
         : "📷 Photo"
       : `📷 ${mediaItems.length} photos & videos`
   );
+
   return { success: true, messageId: message.id };
 }
 
@@ -594,9 +556,19 @@ export async function getMessageMediaBatch(messageIds: string[]) {
 
   const byMessage: Record<string, { url: string; type: "image" | "video" }[]> = {};
   (data || []).forEach((row) => {
-    if (!byMessage[row.message_id]) byMessage[row.message_id] = [];
-    byMessage[row.message_id].push({ url: row.media_url, type: row.media_type as any });
+  if (!byMessage[row.message_id]) {
+    byMessage[row.message_id] = [];
+  }
+
+  if (row.media_type !== "image" && row.media_type !== "video") {
+    return;
+  }
+
+  byMessage[row.message_id].push({
+    url: row.media_url,
+    type: row.media_type,
   });
+});
   return byMessage;
 }
 
