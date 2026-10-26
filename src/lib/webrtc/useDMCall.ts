@@ -591,22 +591,15 @@ function stopRingback() {
   }
 
 
-  useEffect(() => {
-    function handleVisibilityChange() {
-      if (document.hidden && callStateRef.current === "connected") {
-        endCall();
-      }
-    }
+    useEffect(() => {
     function handleBeforeUnload() {
       cleanup();
     }
 
     window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       cleanup();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
