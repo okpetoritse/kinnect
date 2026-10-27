@@ -1268,7 +1268,13 @@ useEffect(() => {
   <div className={styles.callOverlay}>
     {isVideoCall && callState === "connected" ? (
       <div className={styles.videoStage}>
-        <video ref={setRemoteVideoEl} className={styles.remoteVideo} autoPlay playsInline />
+        <video
+  ref={setRemoteVideoEl}
+  className={styles.remoteVideo}
+  autoPlay
+  playsInline
+  muted
+/>
         <video ref={setLocalVideoEl} className={styles.localVideo} autoPlay playsInline muted />
       </div>
     ) : (

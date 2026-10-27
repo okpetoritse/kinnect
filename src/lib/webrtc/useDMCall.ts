@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -35,6 +35,7 @@ export function useDMCall(
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const wasConnectedRef = useRef(false);
   const durationRef = useRef(0);
 
@@ -55,19 +56,27 @@ const ringbackBufferRef = useRef<AudioBuffer | null>(null);
   const localVideoElRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoElRef = useRef<HTMLVideoElement | null>(null);
 
-  function setLocalVideoEl(el: HTMLVideoElement | null) {
-    localVideoElRef.current = el;
-    if (el && localStreamRef.current) {
-      el.srcObject = localStreamRef.current;
-    }
-  }
+  const setLocalVideoEl = useCallback((el: HTMLVideoElement | null) => {
+  localVideoElRef.current = el;
 
-  function setRemoteVideoEl(el: HTMLVideoElement | null) {
-    remoteVideoElRef.current = el;
-    if (el && remoteStreamRef.current) {
-      el.srcObject = remoteStreamRef.current;
-    }
+  const stream = localStreamRef.current;
+  if (el && stream && el.srcObject !== stream) {
+    el.srcObject = stream;
   }
+}, []);
+
+const setRemoteVideoEl = useCallback((el: HTMLVideoElement | null) => {
+  remoteVideoElRef.current = el;
+
+  const stream = remoteStreamRef.current;
+  if (el && stream && el.srcObject !== stream) {
+    el.srcObject = stream;
+
+    void el.play().catch((error: unknown) => {
+      console.warn("[Call] Remote video playback could not start.", error);
+    });
+  }
+}, []);
 
   function roomName() {
     return `call-${[currentUserId, friendId].sort().join("-")}`;
@@ -206,6 +215,22 @@ function stopRingback() {
   }
 }
 
+  async function flushPendingIceCandidates(
+  pc: RTCPeerConnection
+): Promise<void> {
+  if (!pc.remoteDescription) return;
+
+  const candidates = pendingIceCandidatesRef.current.splice(0);
+
+  for (const candidate of candidates) {
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (error) {
+      console.warn("[Call] Could not add a queued ICE candidate.", error);
+    }
+  }
+}
+
   async function createPeerConnection(): Promise<RTCPeerConnection> {
     const iceServers = await loadCallIceServers();
     if (pcRef.current) {
@@ -235,20 +260,55 @@ function stopRingback() {
     };
 
     pc.ontrack = (event) => {
-      if (event.track.kind === "video") {
-        remoteStreamRef.current = event.streams[0];
-        if (remoteVideoElRef.current) {
-          remoteVideoElRef.current.srcObject = event.streams[0];
-        }
-      } else {
-        if (!remoteAudioRef.current) {
-          remoteAudioRef.current = document.createElement("audio");
-          remoteAudioRef.current.autoplay = true;
-          document.body.appendChild(remoteAudioRef.current);
-        }
-        remoteAudioRef.current.srcObject = event.streams[0];
-      }
-    };
+  if (event.track.kind === "video") {
+    const stream =
+      event.streams[0] ?? new MediaStream([event.track]);
+
+    remoteStreamRef.current = stream;
+
+    const videoElement = remoteVideoElRef.current;
+
+    if (videoElement && videoElement.srcObject !== stream) {
+      videoElement.srcObject = stream;
+    }
+
+    if (videoElement) {
+      void videoElement.play().catch((error: unknown) => {
+        console.warn("[Call] Remote video playback was blocked.", error);
+      });
+    }
+
+    return;
+  }
+
+  // Give the audio element only the remote audio track.
+  // The video element will not need to play a second copy of the audio.
+  const audioStream = new MediaStream([event.track]);
+
+  if (!remoteAudioRef.current) {
+    const audio = document.createElement("audio");
+    audio.autoplay = true;
+    audio.muted = false;
+    audio.volume = 1;
+    audio.setAttribute("aria-hidden", "true");
+
+    remoteAudioRef.current = audio;
+    document.body.appendChild(audio);
+  }
+
+  const audioElement = remoteAudioRef.current;
+
+  if (audioElement.srcObject !== audioStream) {
+    audioElement.srcObject = audioStream;
+  }
+
+  void audioElement.play().catch((error: unknown) => {
+    console.warn("[Call] Remote audio playback failed.", error);
+    setCallError(
+      "Call audio could not start. Check your device volume and audio permissions."
+    );
+  });
+};
 
     pc.oniceconnectionstatechange = () => {
       if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
@@ -298,21 +358,33 @@ function stopRingback() {
           if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
           stopRingback();
           await pc.setRemoteDescription(new RTCSessionDescription(payload.answer));
+          await flushPendingIceCandidates(pc);
           wasConnectedRef.current = true;
           setCallState("connected");
           startDurationTimer();
         }
       })
       .on("broadcast", { event: "call-ice" }, async ({ payload }) => {
-        if (payload.from === currentUserId) return;
-        try {
-          if (pcRef.current) {
-            await pcRef.current.addIceCandidate(new RTCIceCandidate(payload.candidate));
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      })
+  if (payload.from === currentUserId) return;
+
+  const candidate = payload.candidate as RTCIceCandidateInit | null;
+  if (!candidate) return;
+
+  const pc = pcRef.current;
+
+  // The recipient may still be answering, or the offer may not have arrived.
+  // Preserve the candidate until a peer connection has a remote description.
+  if (!pc || !pc.remoteDescription) {
+    pendingIceCandidatesRef.current.push(candidate);
+    return;
+  }
+
+  try {
+    await pc.addIceCandidate(new RTCIceCandidate(candidate));
+  } catch (error) {
+    console.warn("[Call] Could not add a remote ICE candidate.", error);
+  }
+})
       .on("broadcast", { event: "call-end" }, ({ payload }) => {
         if (payload.from === currentUserId) return;
         cleanup();
@@ -353,7 +425,8 @@ function stopRingback() {
 
     stopDurationTimer();
     if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
-    pendingOfferRef.current = null;
+    pendingOfferRef.current = null; pendingIceCandidatesRef.current = [];
+
     setMuted(false);
     wasConnectedRef.current = false;
   }
@@ -444,6 +517,7 @@ function stopRingback() {
 
       const pc = await createPeerConnection();
       await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
+      await flushPendingIceCandidates(pc);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
@@ -517,22 +591,15 @@ function stopRingback() {
   }
 
 
-  useEffect(() => {
-    function handleVisibilityChange() {
-      if (document.hidden && callStateRef.current === "connected") {
-        endCall();
-      }
-    }
+    useEffect(() => {
     function handleBeforeUnload() {
       cleanup();
     }
 
     window.addEventListener("beforeunload", handleBeforeUnload);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
       cleanup();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
