@@ -1,11 +1,17 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getRequestSiteOrigin } from "@/lib/notifications/requestSiteOrigin";
 
 export async function saveSubscription(subscription: {
   endpoint: string;
   keys: { p256dh: string; auth: string };
 }) {
+  const siteOrigin = await getRequestSiteOrigin();
+  if (!siteOrigin) {
+    return { error: "Could not determine the current site origin." };
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -15,6 +21,7 @@ export async function saveSubscription(subscription: {
   const { error } = await supabase.from("push_subscriptions").upsert(
     {
       user_id: user.id,
+      site_origin: siteOrigin,
       endpoint: subscription.endpoint,
       p256dh: subscription.keys.p256dh,
       auth: subscription.keys.auth,

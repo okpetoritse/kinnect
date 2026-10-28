@@ -34,17 +34,46 @@ self.addEventListener("push", (event) => {
 
   const title = brandedTitle(data.title);
   const targetPath = normalizeInternalPath(data.url);
+  const tag = typeof data.tag === "string" && data.tag ? data.tag : "";
 
-  const options = {
-    body: typeof data.body === "string" ? data.body : "",
-    icon: "/icons/icon-192.png",
-    badge: "/icons/notification-badge.svg",
-    ...(typeof data.tag === "string" && data.tag ? { tag: data.tag } : {}),
-    renotify: false,
-    data: { url: targetPath },
-  };
+  event.waitUntil(
+    (async () => {
+      let body = typeof data.body === "string" ? data.body : "";
+      let messageCount = 1;
+      const isDirectMessage = tag.startsWith("kinnect:dm:");
 
-  event.waitUntil(self.registration.showNotification(title, options));
+      if (isDirectMessage) {
+        const previous = await self.registration.getNotifications({ tag });
+
+        if (previous.length > 0) {
+          const previousCount = previous.reduce((max, notification) => {
+            const storedCount = Number(notification.data?.messageCount);
+            return Math.max(
+              max,
+              Number.isSafeInteger(storedCount) && storedCount > 0 ? storedCount : 1
+            );
+          }, 1);
+
+          messageCount = previousCount + 1;
+          body = String(messageCount) + " new messages: " + body;
+        }
+      }
+
+      const options = {
+        body,
+        icon: "/icons/icon-192.png",
+        badge: "/icons/notification-badge.svg",
+        ...(tag ? { tag } : {}),
+        renotify: false,
+        data: {
+          url: targetPath,
+          ...(isDirectMessage ? { messageCount } : {}),
+        },
+      };
+
+      await self.registration.showNotification(title, options);
+    })()
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

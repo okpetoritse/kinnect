@@ -1,5 +1,6 @@
 import webpush from "web-push";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getRequestSiteOrigin } from "@/lib/notifications/requestSiteOrigin";
 
 let configured = false;
 
@@ -24,23 +25,56 @@ export async function sendPushToUser(
   userId: string,
   title: string,
   body: string,
-  url: string = "/"
+  url: string = "/",
+  tag?: string
 ) {
   if (!ensureConfigured()) return;
 
+  const siteOrigin = await getRequestSiteOrigin();
+  if (!siteOrigin) {
+    console.error("[PUSH] Could not determine request origin; skipping delivery.");
+    return;
+  }
+
   const supabase = createAdminClient();
 
-  const { data: subs, error } = await supabase
+  const { data: matchingSubs, error } = await supabase
     .from("push_subscriptions")
     .select("id, endpoint, p256dh, auth")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .eq("site_origin", siteOrigin);
+
+  if (error) {
+    console.error(`[PUSH] Subscription lookup failed for user ${userId}:`, error);
+    return;
+  }
+
+  let subs = matchingSubs ?? [];
+
+  // Temporary compatibility for subscriptions created before site_origin existed.
+  // Only the canonical Production deployment may use unclassified legacy rows.
+  if (siteOrigin === "https://kinnect-mu.vercel.app") {
+    const { data: legacySubs, error: legacyError } = await supabase
+      .from("push_subscriptions")
+      .select("id, endpoint, p256dh, auth")
+      .eq("user_id", userId)
+      .is("site_origin", null);
+
+    if (legacyError) {
+      console.error("[PUSH] Legacy subscription lookup failed:", legacyError);
+    } else {
+      const uniqueSubs = new Map(
+        [...subs, ...(legacySubs ?? [])].map((sub) => [sub.id, sub])
+      );
+      subs = [...uniqueSubs.values()];
+    }
+  }
 
   console.log(`[PUSH] Looking up subscriptions for user ${userId}:`, {
-    found: subs?.length || 0,
-    error,
+    found: subs.length,
   });
 
-  if (!subs || subs.length === 0) return;
+  if (subs.length === 0) return;
 
   await Promise.all(
     subs.map(async (sub) => {
@@ -50,7 +84,7 @@ export async function sendPushToUser(
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           },
-          JSON.stringify({ title, body, url })
+          JSON.stringify({ title, body, url, ...(tag ? { tag } : {}) })
         );
         console.log(`[PUSH] Sent successfully to endpoint ending in ...${sub.endpoint.slice(-12)}`, result.statusCode);
       } catch (err: any) {

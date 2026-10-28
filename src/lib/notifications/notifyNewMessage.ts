@@ -30,7 +30,7 @@ export function notifyNewMessage(senderId: string, receiverId: string, preview: 
         .maybeSingle();
 
       const title = sender?.username ? `@${sender.username}` : "New message";
-      await sendPushToUser(receiverId, title, preview, `/messages/${senderId}`);
+      await sendPushToUser(receiverId, title, preview, `/messages/${senderId}`, `kinnect:dm:${receiverId}:${senderId}`);
     } catch (err) {
       console.error("[PUSH] notifyNewMessage failed:", err);
     }
