@@ -3,8 +3,51 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { sendPushToUser } from "@/lib/notifications/sendPush";
 import { queuePush } from "@/lib/notifications/queuePush";
+
+type CommunityNotificationClient = Awaited<
+  ReturnType<typeof createClient>
+>;
+
+async function notifyCommunityMembers(
+  supabase: CommunityNotificationClient,
+  communityId: string,
+  senderId: string,
+  title: string,
+  body: string,
+  url: string
+): Promise<void> {
+  const { data: members, error } = await supabase
+    .from("community_members")
+    .select("user_id")
+    .eq("community_id", communityId)
+    .neq("user_id", senderId);
+
+  if (error) {
+    console.error("[PUSH] Could not load community recipients.", {
+      communityId,
+      error,
+    });
+    return;
+  }
+
+  const recipientIds = [
+    ...new Set(
+      (members ?? [])
+        .map((member) => member.user_id)
+        .filter(
+          (userId): userId is string =>
+            typeof userId === "string" &&
+            userId.length > 0 &&
+            userId !== senderId
+        )
+    ),
+  ];
+
+  if (recipientIds.length === 0) return;
+
+  queuePush(recipientIds, title, body, url);
+}
 
 
 export async function createCommunity(formData: FormData) {
@@ -153,6 +196,23 @@ export async function createPost(
   if (error) return { error: error.message };
 
   revalidatePath(`/communities/${communityId}`);
+
+    const preview =
+    content.trim() ||
+    (videoUrl
+      ? "A member shared a video."
+      : imageUrl
+        ? "A member shared a photo."
+        : "A new community post was shared.");
+
+  await notifyCommunityMembers(
+    supabase,
+    communityId,
+    user.id,
+    "New community post",
+    preview.slice(0, 100),
+    `/communities/${communityId}`
+  );
   return { success: true };
 }
 
@@ -234,7 +294,21 @@ export async function sendCommunityMediaMessage(
     video_url: type === "video" ? url : null,
   });
 
-  if (error) return { error: error.message };
+    if (error) return { error: error.message };
+
+  await notifyCommunityMembers(
+    supabase,
+    communityId,
+    user.id,
+    type === "image"
+      ? "New community photo"
+      : "New community video",
+    type === "image"
+      ? "A member shared a photo in your community."
+      : "A member shared a video in your community.",
+    `/communities/${communityId}/chat`
+  );
+
   return { success: true };
 }
 
@@ -256,7 +330,17 @@ export async function sendCommunityStickerMessage(
     sticker_id: stickerId,
   });
 
-  if (error) return { error: error.message };
+    if (error) return { error: error.message };
+
+  await notifyCommunityMembers(
+    supabase,
+    communityId,
+    user.id,
+    "New community sticker",
+    "A member sent a sticker in your community.",
+    `/communities/${communityId}/chat`
+  );
+
   return { success: true };
 }
 

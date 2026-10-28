@@ -1,50 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { saveSubscription } from "@/app/notifications/actions";
-import { getPushEnvironment, urlBase64ToUint8Array, type PushEnvironment } from "@/lib/notifications/pushEnv";
+import { useState } from "react";
+import { ensurePushSubscription } from "@/lib/notifications/registerPushSubscription";
+import {
+  notifyPushEnvironmentChanged,
+  usePushEnvironment,
+} from "@/lib/notifications/usePushEnvironment";
 import styles from "./page.module.css";
 
 export default function NotificationToggle() {
-  const [env, setEnv] = useState<PushEnvironment | null>(null);
+  const env = usePushEnvironment();
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    setEnv(getPushEnvironment());
-  }, []);
 
   async function handleEnable() {
     setBusy(true);
+
     try {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setEnv(getPushEnvironment());
+      const result = await ensurePushSubscription(true);
+      notifyPushEnvironmentChanged();
+
+      if (!result.success) {
+        window.alert(result.message);
         return;
       }
 
-      const key = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!key) {
-        alert("Notifications aren't configured yet.");
-        return;
-      }
+      window.alert("Kinnect notifications are connected on this device.");
+    } catch (error) {
+      console.error("[PUSH] Notification setup failed:", error);
 
-      const registration = await navigator.serviceWorker.ready;
-      const existing = await registration.pushManager.getSubscription();
-      if (existing) await existing.unsubscribe();
-
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key),
-      });
-
-      const result = await saveSubscription(subscription.toJSON() as any);
-      if (result?.error) alert("Could not save subscription: " + result.error);
-      else {
-        setEnv("granted");
-        alert("Notifications connected ✅");
-      }
-    } catch (err: any) {
-      alert("Setup failed: " + (err?.message || String(err)));
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "Could not connect Kinnect notifications."
+      );
     } finally {
       setBusy(false);
     }
@@ -55,7 +43,8 @@ export default function NotificationToggle() {
   if (env === "ios-needs-install") {
     return (
       <div className={styles.notifBtn} style={{ lineHeight: 1.5 }}>
-        🔔 On iPhone, notifications only work from the installed app. Tap Share, then &quot;Add to Home Screen&quot;, and open Kinnect from there.
+        On iPhone, notifications require the installed app. Tap Share, then
+        &quot;Add to Home Screen&quot;, and open Kinnect from there.
       </div>
     );
   }
@@ -63,26 +52,36 @@ export default function NotificationToggle() {
   if (env === "unsupported") {
     return (
       <div className={styles.notifBtn} style={{ lineHeight: 1.5 }}>
-        🔕 This browser doesn&apos;t support notifications. Try Chrome on Android, or install Kinnect to your home screen.
+        This browser doesn&apos;t support notifications. Try a supported
+        browser or install Kinnect to your Home Screen.
       </div>
     );
   }
 
   if (env === "denied") {
     return (
-      <button className={styles.notifBtn} disabled style={{ color: "var(--coral)" }}>
-        🔕 Notifications blocked — enable them in your browser&apos;s site settings
+      <button
+        className={styles.notifBtn}
+        disabled
+        style={{ color: "var(--coral)" }}
+      >
+        Notifications are blocked. Enable them in your browser&apos;s site
+        settings.
       </button>
     );
   }
 
   return (
-    <button className={styles.notifBtn} onClick={handleEnable} disabled={busy}>
+    <button
+      className={styles.notifBtn}
+      onClick={handleEnable}
+      disabled={busy}
+    >
       {busy
         ? "Connecting..."
         : env === "granted"
-        ? "🔔 Notifications enabled — tap to reconnect"
-        : "🔔 Turn on notifications"}
+          ? "Notifications enabled — tap to reconnect"
+          : "Turn on notifications"}
     </button>
   );
 }

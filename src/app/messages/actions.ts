@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { sendPushToUser } from "@/lib/notifications/sendPush";
 import { notifyNewMessage } from "@/lib/notifications/notifyNewMessage";
 import { assertCanMessage } from "@/lib/messaging/assertCanMessage";
+import { queuePush } from "@/lib/notifications/queuePush";
 
 export async function getMessages(friendId: string) {
   const supabase = await createClient();
@@ -453,6 +454,20 @@ export async function logCallMessage(
   }
 
   revalidatePath(`/messages/${friendId}`);
+
+  if (callStatus === "missed") {
+  const callerName =
+    user.user_metadata?.full_name ||
+    user.email?.split("@")[0] ||
+    "Someone";
+
+  queuePush(
+    friendId,
+    `Missed ${callType} call`,
+    `${callerName} tried to reach you.`,
+    `/messages/${user.id}`
+  );
+}
 
   return { success: true };
 }

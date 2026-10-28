@@ -1,29 +1,89 @@
+function normalizeInternalPath(value) {
+  try {
+    const candidate = typeof value === "string" ? value : "/";
+    const url = new URL(candidate, self.location.origin);
+
+    if (url.origin !== self.location.origin) return "/";
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/";
+  }
+}
+
+function brandedTitle(value) {
+  const title = typeof value === "string" ? value.trim() : "";
+
+  if (!title) return "Kinnect";
+  if (/^kinnect\b/i.test(title)) return title;
+
+  return `Kinnect · ${title}`;
+}
+
 self.addEventListener("push", (event) => {
-  const data = event.data ? event.data.json() : {};
-  const title = data.title || "Kinnect";
+  let data = {};
+
+  try {
+    const parsed = event.data ? event.data.json() : {};
+    if (parsed && typeof parsed === "object") data = parsed;
+  } catch {
+    data = {
+      body: event.data ? event.data.text() : "",
+    };
+  }
+
+  const title = brandedTitle(data.title);
+  const targetPath = normalizeInternalPath(data.url);
+
   const options = {
-    body: data.body || "",
+    body: typeof data.body === "string" ? data.body : "",
     icon: "/icons/icon-192.png",
-    badge: "/icons/icon-192.png",
-    data: { url: data.url || "/" },
+    badge: "/icons/notification-badge.svg",
+    ...(typeof data.tag === "string" && data.tag ? { tag: data.tag } : {}),
+    renotify: false,
+    data: { url: targetPath },
   };
+
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
+
+  const targetPath = normalizeInternalPath(event.notification.data?.url);
+  const targetUrl = new URL(targetPath, self.location.origin).href;
+
   event.waitUntil(
-    self.clients.matchAll({ type: "window" }).then((clientList) => {
-      for (const client of clientList) {
-        if (client.url.includes(self.location.origin) && "focus" in client) {
-          client.navigate(url);
+    (async () => {
+      const clients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+
+      for (const client of clients) {
+        let clientOrigin;
+
+        try {
+          clientOrigin = new URL(client.url).origin;
+        } catch {
+          continue;
+        }
+
+        if (clientOrigin !== self.location.origin) continue;
+
+        try {
+          if (client.url !== targetUrl) {
+            const navigatedClient = await client.navigate(targetUrl);
+            if (navigatedClient) return navigatedClient.focus();
+          }
+
           return client.focus();
+        } catch (error) {
+          console.warn("[PUSH] Could not focus an existing app window:", error);
         }
       }
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(url);
-      }
-    })
+
+      return self.clients.openWindow(targetUrl);
+    })()
   );
 });
