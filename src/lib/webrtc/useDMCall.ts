@@ -35,6 +35,15 @@ export function useDMCall(
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingOfferRef = useRef<RTCSessionDescriptionInit | null>(null);
+  const activeOutgoingCallRef = useRef<{
+    callId: string;
+    offer: RTCSessionDescriptionInit;
+    video: boolean;
+    callerName: string;
+    candidates: RTCIceCandidateInit[];
+  } | null>(null);
+  const activeIncomingCallIdRef = useRef<string | null>(null);
+  const localIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const wasConnectedRef = useRef(false);
   const durationRef = useRef(0);
@@ -251,10 +260,12 @@ function stopRingback() {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        const candidate = event.candidate.toJSON();
+        localIceCandidatesRef.current.push(candidate);
         channelRef.current?.send({
           type: "broadcast",
           event: "call-ice",
-          payload: { from: currentUserId, candidate: event.candidate },
+          payload: { from: currentUserId, candidate },
         });
       }
     };
@@ -341,15 +352,90 @@ function stopRingback() {
   useEffect(() => {
     const supabase = createClient();
     const channel = supabase.channel(roomName());
+    let channelSubscribed = false;
+    let recoveryInterval: ReturnType<typeof setInterval> | null = null;
+    let recoveryAttempts = 0;
+
+    const stopRecoveryWindow = () => {
+      if (recoveryInterval) clearInterval(recoveryInterval);
+      recoveryInterval = null;
+      recoveryAttempts = 0;
+    };
+
+    const requestCallRecovery = () => {
+      if (!channelSubscribed || document.visibilityState !== "visible") return;
+
+      void channel.send({
+        type: "broadcast",
+        event: "call-recover",
+        payload: { from: currentUserId },
+      });
+    };
+
+    const startRecoveryWindow = () => {
+      if (!channelSubscribed || document.visibilityState !== "visible") return;
+
+      stopRecoveryWindow();
+      requestCallRecovery();
+
+      recoveryInterval = setInterval(() => {
+        if (!channelSubscribed || document.visibilityState !== "visible") return;
+
+        recoveryAttempts += 1;
+        requestCallRecovery();
+
+        if (recoveryAttempts >= 6) stopRecoveryWindow();
+      }, 1500);
+    };
+
+    document.addEventListener("visibilitychange", startRecoveryWindow);
 
     channel
       .on("broadcast", { event: "call-offer" }, async ({ payload }) => {
         if (payload.from === currentUserId) return;
+        const incomingCallId = typeof payload.callId === "string" ? payload.callId : null;
+        if (incomingCallId && incomingCallId === activeIncomingCallIdRef.current) return;
+        stopRecoveryWindow();
+        activeIncomingCallIdRef.current = incomingCallId;
         pendingOfferRef.current = payload.offer;
         setCallerName(payload.callerName);
         setIsVideoCall(!!payload.video);
         setCallState("ringing");
         startRinging();
+      })
+      .on("broadcast", { event: "call-recover" }, ({ payload }) => {
+        if (payload.from === currentUserId) return;
+
+        const outgoing = activeOutgoingCallRef.current;
+        const pc = pcRef.current;
+        if (
+          !outgoing ||
+          wasConnectedRef.current ||
+          !pc ||
+          pc.signalingState !== "have-local-offer"
+        ) {
+          return;
+        }
+
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "call-offer",
+          payload: {
+            from: currentUserId,
+            callerName: outgoing.callerName,
+            offer: outgoing.offer,
+            video: outgoing.video,
+            callId: outgoing.callId,
+          },
+        });
+
+        for (const candidate of outgoing.candidates) {
+          channelRef.current?.send({
+            type: "broadcast",
+            event: "call-ice",
+            payload: { from: currentUserId, candidate },
+          });
+        }
       })
       .on("broadcast", { event: "call-answer" }, async ({ payload }) => {
         if (payload.from === currentUserId) return;
@@ -387,20 +473,35 @@ function stopRingback() {
 })
       .on("broadcast", { event: "call-end" }, ({ payload }) => {
         if (payload.from === currentUserId) return;
+        stopRecoveryWindow();
         cleanup();
         setCallState("idle");
       })
-      .subscribe();
+      .subscribe((status) => {
+        channelSubscribed = status === "SUBSCRIBED";
+        if (channelSubscribed) {
+          startRecoveryWindow();
+        } else {
+          stopRecoveryWindow();
+        }
+      });
 
     channelRef.current = channel;
 
     return () => {
+      document.removeEventListener("visibilitychange", startRecoveryWindow);
+      channelSubscribed = false;
+      stopRecoveryWindow();
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [friendId, currentUserId]);
 
   function cleanup() {
+    activeOutgoingCallRef.current = null;
+    activeIncomingCallIdRef.current = null;
+    localIceCandidatesRef.current = [];
+    pendingOfferRef.current = null;
     stopRinging();
     stopRingback();
 
@@ -456,6 +557,9 @@ function stopRingback() {
     setIsVideoCall(video);
     setCallError(null);
     wasConnectedRef.current = false;
+    activeOutgoingCallRef.current = null;
+    activeIncomingCallIdRef.current = null;
+    localIceCandidatesRef.current = [];
 
     try {
       const stream = await getMedia(video);
@@ -467,11 +571,20 @@ function stopRingback() {
       const pc = await createPeerConnection();
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      const callId = crypto.randomUUID();
+
+      activeOutgoingCallRef.current = {
+        callId,
+        offer,
+        video,
+        callerName: currentUserName,
+        candidates: localIceCandidatesRef.current,
+      };
 
       channelRef.current?.send({
         type: "broadcast",
         event: "call-offer",
-        payload: { from: currentUserId, callerName: currentUserName, offer, video },
+        payload: { from: currentUserId, callerName: currentUserName, offer, video, callId },
       });
 
       startRingback();
