@@ -26,7 +26,8 @@ export async function sendPushToUser(
   title: string,
   body: string,
   url: string = "/",
-  tag?: string
+  tag?: string,
+  extra?: Record<string, unknown>
 ) {
   if (!ensureConfigured()) return;
 
@@ -84,15 +85,16 @@ export async function sendPushToUser(
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth },
           },
-          JSON.stringify({ title, body, url, ...(tag ? { tag } : {}) })
+          JSON.stringify({ title, body, url, ...(tag ? { tag } : {}), ...(extra ?? {}) })
         );
         console.log(`[PUSH] Sent successfully to endpoint ending in ...${sub.endpoint.slice(-12)}`, result.statusCode);
-      } catch (err: any) {
+      } catch (err: unknown) {
+        const pushError = err as { statusCode?: number; body?: unknown; message?: string };
         console.error(`[PUSH] FAILED to send to endpoint ending in ...${sub.endpoint.slice(-12)}:`, {
-          statusCode: err.statusCode,
-          message: err.body || err.message,
+          statusCode: pushError.statusCode,
+          message: pushError.body ?? pushError.message ?? String(err),
         });
-        if (err.statusCode === 410 || err.statusCode === 404) {
+        if (pushError.statusCode === 410 || pushError.statusCode === 404) {
           await supabase.from("push_subscriptions").delete().eq("id", sub.id);
         }
       }

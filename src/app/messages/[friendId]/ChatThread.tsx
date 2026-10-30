@@ -11,13 +11,13 @@ import {
   markMessagesRead,
   sendVoiceBurst,
   sendPing,
-  notifyIncomingCall,
   logCallMessage,
   markChatActive,
   deleteMessage,
   sendMediaCollection,
   getMessageMediaBatch,
 } from "../actions";
+import { getPendingCallInvitation } from "../call-actions";
 import {
   blockUser,
   unblockUser,
@@ -244,7 +244,44 @@ export default function ChatThread({
     toggleMute: toggleCallMute,
     setLocalVideoEl,
     setRemoteVideoEl,
+    restoreIncomingCall,
   } = useDMCall(friendId, currentUserId, "You", handleCallEnded);
+
+  useEffect(() => {
+    let disposed = false;
+    let inFlight = false;
+
+    const recoverPendingCall = async () => {
+      if (inFlight) return;
+      inFlight = true;
+
+      try {
+        const result = await getPendingCallInvitation(friendId);
+        if (!disposed && result.invitation) {
+          restoreIncomingCall(result.invitation);
+        }
+      } catch (error) {
+        console.error("[Call] Could not restore incoming invitation:", error);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    void recoverPendingCall();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void recoverPendingCall();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      disposed = true;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [friendId, restoreIncomingCall]);
 
     function handleLongPressStart(msgId: string) {
     longPressTimerRef.current = setTimeout(() => {
@@ -758,19 +795,13 @@ useEffect(() => {
           </Link>
           <button
             className={styles.callBtn}
-            onClick={() => {
-              startCall(true);
-              notifyIncomingCall(friendId);
-            }}
+            onClick={() => { void startCall(true); }}
           >
             <Video size={17} />
           </button>
           <button
             className={styles.callBtn}
-            onClick={() => {
-              startCall(false);
-              notifyIncomingCall(friendId);
-            }}
+            onClick={() => { void startCall(false); }}
           >
             <Phone size={17} />
           </button>

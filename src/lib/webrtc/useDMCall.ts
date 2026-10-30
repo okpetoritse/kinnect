@@ -3,9 +3,43 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+import { createCallInvitation, publishCallInvitation, updateCallInvitationStatus } from "@/app/messages/call-actions";
 
 type CallState = "idle" | "calling" | "ringing" | "connected";
 type CallStatus = "completed" | "missed" | "declined";
+type PendingCallInvitation = {
+  id: string;
+  callerId: string;
+  callType: "audio" | "video";
+  callerName: string;
+  offer: RTCSessionDescriptionInit;
+  expiresAt: string;
+};
+
+function waitForIceGatheringComplete(
+  pc: RTCPeerConnection,
+  timeoutMs = 10_000
+): Promise<void> {
+  if (pc.iceGatheringState === "complete") return Promise.resolve();
+
+  return new Promise((resolve, reject) => {
+    const timeout = { id: undefined as ReturnType<typeof setTimeout> | undefined };
+    const finish = (error?: Error) => {
+      if (timeout.id) clearTimeout(timeout.id);
+      pc.removeEventListener("icegatheringstatechange", onStateChange);
+      if (error) reject(error);
+      else resolve();
+    };
+    const onStateChange = () => {
+      if (pc.iceGatheringState === "complete") finish();
+    };
+    timeout.id = setTimeout(() => {
+      finish(new Error("Network setup timed out while preparing the call. Please try again."));
+    }, timeoutMs);
+    pc.addEventListener("icegatheringstatechange", onStateChange);
+    onStateChange();
+  });
+}
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.relay.metered.ca:80" },
@@ -47,6 +81,7 @@ export function useDMCall(
   const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
   const wasConnectedRef = useRef(false);
   const durationRef = useRef(0);
+  const startAttemptRef = useRef(0);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
 const ringtoneSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -400,6 +435,7 @@ function stopRingback() {
         pendingOfferRef.current = payload.offer;
         setCallerName(payload.callerName);
         setIsVideoCall(!!payload.video);
+        callStateRef.current = "ringing";
         setCallState("ringing");
         startRinging();
       })
@@ -553,6 +589,10 @@ function stopRingback() {
   }
 
   async function startCall(video: boolean = false) {
+    if (callStateRef.current !== "idle") return;
+
+    const attemptId = ++startAttemptRef.current;
+    callStateRef.current = "calling";
     setCallState("calling");
     setIsVideoCall(video);
     setCallError(null);
@@ -561,51 +601,121 @@ function stopRingback() {
     activeIncomingCallIdRef.current = null;
     localIceCandidatesRef.current = [];
 
+    let invitationId: string | null = null;
+
     try {
       const stream = await getMedia(video);
+      if (attemptId !== startAttemptRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       localStreamRef.current = stream;
       if (video && localVideoElRef.current) {
         localVideoElRef.current.srcObject = stream;
       }
 
       const pc = await createPeerConnection();
+      if (attemptId !== startAttemptRef.current) {
+        pc.close();
+        if (pcRef.current === pc) pcRef.current = null;
+        return;
+      }
+
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-      const callId = crypto.randomUUID();
+      await waitForIceGatheringComplete(pc);
 
+      if (attemptId !== startAttemptRef.current) return;
+
+      const localDescription = pc.localDescription;
+      if (!localDescription?.sdp) {
+        throw new Error("Could not prepare the call offer.");
+      }
+
+      const created = await createCallInvitation(
+        friendId,
+        video ? "video" : "audio"
+      );
+
+      if ("error" in created) throw new Error(created.error);
+      invitationId = created.invitationId;
+
+      if (attemptId !== startAttemptRef.current) {
+        void updateCallInvitationStatus(invitationId, "cancelled");
+        return;
+      }
+
+      const completeOffer: RTCSessionDescriptionInit = {
+        type: "offer",
+        sdp: localDescription.sdp,
+      };
+
+      const published = await publishCallInvitation(invitationId, {
+        type: completeOffer.type,
+        sdp: completeOffer.sdp,
+      });
+
+      if ("error" in published) throw new Error(published.error);
+
+      if (attemptId !== startAttemptRef.current) {
+        void updateCallInvitationStatus(invitationId, "cancelled");
+        return;
+      }
+
+      // Keep the offer for the existing Realtime recovery mechanism too.
       activeOutgoingCallRef.current = {
-        callId,
-        offer,
+        callId: invitationId,
+        offer: completeOffer,
         video,
-        callerName: currentUserName,
-        candidates: localIceCandidatesRef.current,
+        callerName: created.callerName,
+        candidates: [...localIceCandidatesRef.current],
       };
 
       channelRef.current?.send({
         type: "broadcast",
         event: "call-offer",
-        payload: { from: currentUserId, callerName: currentUserName, offer, video, callId },
+        payload: {
+          from: currentUserId,
+          callerName: created.callerName,
+          offer: completeOffer,
+          video,
+          callId: invitationId,
+        },
       });
 
       startRingback();
 
       if (ringTimeoutRef.current) clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = setTimeout(() => {
+        const callId = invitationId;
+        if (callId) void updateCallInvitationStatus(callId, "missed");
+
         channelRef.current?.send({
           type: "broadcast",
           event: "call-end",
-          payload: { from: currentUserId },
+          payload: { from: currentUserId, callId },
         });
+
         onCallEnded?.(video ? "video" : "audio", "missed", 0);
         cleanup();
+        callStateRef.current = "idle";
         setCallState("idle");
-      }, 30000);
+      }, 30_000);
     } catch (err) {
-  console.error("startCall failed:", err);
-  setCallError(
-    err instanceof Error ? err.message : "Could not start the call"
-  );
+      if (invitationId) {
+        void updateCallInvitationStatus(invitationId, "cancelled");
+      }
+
+      // A user cancellation should not surface as a call-start error.
+      if (attemptId !== startAttemptRef.current) return;
+
+      console.error("startCall failed:", err);
+      setCallError(
+        err instanceof Error ? err.message : "Could not start the call"
+      );
       cleanup();
+      callStateRef.current = "idle";
       setCallState("idle");
     }
   }
@@ -615,9 +725,12 @@ function stopRingback() {
       console.error("No pending offer to accept");
       setCallError("This call is no longer available");
       cleanup();
+      callStateRef.current = "idle";
       setCallState("idle");
       return;
     }
+
+    const invitationId = activeIncomingCallIdRef.current;
 
     try {
       stopRinging();
@@ -629,52 +742,130 @@ function stopRingback() {
       }
 
       const pc = await createPeerConnection();
-      await pc.setRemoteDescription(new RTCSessionDescription(pendingOfferRef.current));
+      await pc.setRemoteDescription(
+        new RTCSessionDescription(pendingOfferRef.current)
+      );
       await flushPendingIceCandidates(pc);
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+
+      if (invitationId) {
+        const result = await updateCallInvitationStatus(
+          invitationId,
+          "accepted"
+        );
+        if ("error" in result) throw new Error(result.error);
+      }
 
       channelRef.current?.send({
         type: "broadcast",
         event: "call-answer",
-        payload: { from: currentUserId, answer },
+        payload: { from: currentUserId, answer, callId: invitationId },
       });
 
       wasConnectedRef.current = true;
+      callStateRef.current = "connected";
       setCallState("connected");
       startDurationTimer();
     } catch (err) {
-  console.error("acceptCall failed:", err);
-  setCallError(
-    err instanceof Error ? err.message : "Could not connect the call"
-  );
+      console.error("acceptCall failed:", err);
+      setCallError(
+        err instanceof Error ? err.message : "Could not connect the call"
+      );
       cleanup();
+      callStateRef.current = "idle";
       setCallState("idle");
     }
   }
 
   function declineCall() {
+    startAttemptRef.current += 1;
+    const invitationId = activeIncomingCallIdRef.current;
+
+    if (invitationId) {
+      void updateCallInvitationStatus(invitationId, "declined");
+    }
+
     channelRef.current?.send({
       type: "broadcast",
       event: "call-end",
-      payload: { from: currentUserId },
+      payload: { from: currentUserId, callId: invitationId },
     });
+
     onCallEnded?.(isVideoCall ? "video" : "audio", "declined", 0);
     cleanup();
+    callStateRef.current = "idle";
     setCallState("idle");
   }
 
   function endCall() {
+    startAttemptRef.current += 1;
+
+    const outgoingId = activeOutgoingCallRef.current?.callId ?? null;
+    const incomingId = activeIncomingCallIdRef.current;
+    const invitationId = outgoingId ?? incomingId;
+    const status: CallStatus = wasConnectedRef.current
+      ? "completed"
+      : incomingId && !outgoingId
+        ? "declined"
+        : "missed";
+
+    if (invitationId) {
+      const invitationStatus =
+        status === "completed"
+          ? "completed"
+          : status === "declined"
+            ? "declined"
+            : "missed";
+      void updateCallInvitationStatus(invitationId, invitationStatus);
+    }
+
     channelRef.current?.send({
       type: "broadcast",
       event: "call-end",
-      payload: { from: currentUserId },
+      payload: { from: currentUserId, callId: invitationId },
     });
-    const status: CallStatus = wasConnectedRef.current ? "completed" : "missed";
-    onCallEnded?.(isVideoCall ? "video" : "audio", status, durationRef.current);
+
+    onCallEnded?.(
+      isVideoCall ? "video" : "audio",
+      status,
+      durationRef.current
+    );
     cleanup();
+    callStateRef.current = "idle";
     setCallState("idle");
   }
+
+  // Used when a notification opens the conversation after the original
+  // Realtime offer has already been sent.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const restoreIncomingCall = useCallback(
+    (invitation: PendingCallInvitation) => {
+      if (
+        !invitation?.id ||
+        !invitation.offer ||
+        invitation.offer.type !== "offer" ||
+        typeof invitation.offer.sdp !== "string" ||
+        !Number.isFinite(Date.parse(invitation.expiresAt)) ||
+        Date.parse(invitation.expiresAt) <= Date.now()
+      ) {
+        return;
+      }
+
+      if (activeIncomingCallIdRef.current === invitation.id) return;
+      if (callStateRef.current !== "idle") return;
+
+      pendingOfferRef.current = invitation.offer;
+      activeIncomingCallIdRef.current = invitation.id;
+      setCallerName(invitation.callerName || "Someone");
+      setIsVideoCall(invitation.callType === "video");
+      callStateRef.current = "ringing";
+      setCallState("ringing");
+      startRinging();
+    },
+    []
+  );
 
   function toggleMute() {
     const stream = localStreamRef.current;
@@ -729,6 +920,7 @@ function stopRingback() {
     toggleSpeaker,
     startCall,
     acceptCall,
+    restoreIncomingCall,
     declineCall,
     endCall,
     toggleMute,

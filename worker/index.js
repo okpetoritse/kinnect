@@ -38,6 +38,52 @@ self.addEventListener("push", (event) => {
 
   event.waitUntil(
     (async () => {
+      if (data.type === "call-ended") {
+        if (tag) {
+          const existing = await self.registration.getNotifications({ tag });
+          existing.forEach((notification) => notification.close());
+        }
+        return;
+      }
+
+      if (data.type === "incoming-call") {
+        const invitationId = data.callInvitationId;
+        const expiry = Date.parse(data.expiresAt);
+
+        if (
+          typeof invitationId !== "string" ||
+          !/^[0-9a-f-]{36}$/i.test(invitationId) ||
+          !Number.isFinite(expiry) ||
+          expiry <= Date.now()
+        ) {
+          return;
+        }
+
+        let verification = null;
+
+        try {
+          const statusUrl = new URL(
+            "/api/call-invitations/" +
+              encodeURIComponent(invitationId) +
+              "/status",
+            self.location.origin
+          );
+
+          const response = await fetch(statusUrl, {
+            method: "GET",
+            cache: "no-store",
+            credentials: "omit",
+            headers: { Accept: "application/json" },
+          });
+
+          if (response.ok) verification = await response.json();
+        } catch (error) {
+          console.warn("[Push] Incoming call verification failed:", error);
+        }
+
+        if (verification?.active !== true) return;
+      }
+
       let body = typeof data.body === "string" ? data.body : "";
       let messageCount = 1;
       const isDirectMessage = tag.startsWith("kinnect:dm:");
@@ -68,6 +114,13 @@ self.addEventListener("push", (event) => {
         data: {
           url: targetPath,
           ...(isDirectMessage ? { messageCount } : {}),
+          ...(data.type === "incoming-call"
+            ? {
+                type: "incoming-call",
+                callInvitationId: data.callInvitationId,
+                expiresAt: data.expiresAt,
+              }
+            : {}),
         },
       };
 
