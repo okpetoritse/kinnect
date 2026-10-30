@@ -72,7 +72,7 @@ self.addEventListener("push", (event) => {
           const response = await fetch(statusUrl, {
             method: "GET",
             cache: "no-store",
-            credentials: "omit",
+            credentials: "same-origin",
             headers: { Accept: "application/json" },
           });
 
