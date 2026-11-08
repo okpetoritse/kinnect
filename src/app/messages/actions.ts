@@ -211,17 +211,21 @@ export async function sendVoiceNoteMessage(
 
 export async function markMessagesRead(friendId: string) {
   const supabase = await createClient();
+
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
-  if (!user) return;
 
-  await supabase
-    .from("messages")
-    .update({ read_at: new Date().toISOString() })
-    .eq("sender_id", friendId)
-    .eq("receiver_id", user.id)
-    .is("read_at", null);
+  if (authError || !user) return;
+
+  const { error } = await supabase.rpc("mark_messages_read", {
+    p_sender_id: friendId,
+  });
+
+  if (error) {
+    console.error("[markMessagesRead] Failed:", error.message);
+  }
 }
 export async function getMessagesFriendsPaginated(cursor?: string) {
   const supabase = await createClient();
