@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { createListing } from "../actions";
 import { createClient } from "@/lib/supabase/client";
 import styles from "./page.module.css";
+import { MARKETPLACE_CATEGORIES } from "@/lib/marketplace/categories";
+
 
 type Business = { id: string; name: string };
 
@@ -78,12 +80,31 @@ export default function NewListingForm({ businesses }: { businesses: Business[] 
           </label>
           <input className={styles.input} id="price" name="price" type="number" />
         </div>
-        <div className={styles.field} style={{ flex: 1 }}>
-          <label className={styles.label} htmlFor="category">
-            Category
-          </label>
-          <input className={styles.input} id="category" name="category" />
-        </div>
+
+<div className={styles.field}>
+  <label className={styles.label} htmlFor="category">
+    Category
+  </label>
+
+  <select
+    className={styles.select}
+    id="category"
+    name="category"
+    defaultValue=""
+    required
+  >
+    <option value="" disabled>
+      Choose a category
+    </option>
+
+    {MARKETPLACE_CATEGORIES.map((category) => (
+      <option key={category.value} value={category.value}>
+        {category.icon} {category.value}
+      </option>
+    ))}
+  </select>
+</div>
+
       </div>
 
       <div className={styles.field}>

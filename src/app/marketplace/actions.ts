@@ -3,6 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { MARKETPLACE_CATEGORY_VALUES } from "@/lib/marketplace/categories";
+
 
 export async function getListings(options?: {
   query?: string;
@@ -11,57 +13,114 @@ export async function getListings(options?: {
   cursor?: string;
   country?: string;
   allRegions?: boolean;
+  sort?: "newest" | "price-low" | "price-high";
 }) {
   const supabase = await createClient();
   const PAGE_SIZE = 20;
 
+  const parsedOffset = options?.cursor
+    ? Number.parseInt(options.cursor, 10)
+    : 0;
+
+  const offset =
+    Number.isSafeInteger(parsedOffset) && parsedOffset >= 0
+      ? Math.min(parsedOffset, 100000)
+      : 0;
+
+  const sort = options?.sort || "newest";
+
   let request = supabase
     .from("marketplace_listings")
     .select(
-      "id, title, price, currency, category, location, image_urls, status, business_id, is_promoted, promoted_until, seller_country, created_at"
+      `id, title, price, currency, category, location, image_urls,
+       status, business_id, is_promoted, promoted_until,
+       seller_country, created_at,
+       seller:profiles!marketplace_listings_seller_id_fkey(id, full_name),
+       business:business_profiles(id, name, verified)`
     )
-    .eq("status", "active")
-    .order("created_at", { ascending: false })
-    .limit(PAGE_SIZE);
+    .eq("status", "active");
 
-  if (options?.cursor) {
-    request = request.lt("created_at", options.cursor);
+  // Search titles, descriptions and categories.
+  const searchTerm = (options?.query || "")
+    .trim()
+    .replace(/[.,%()_*|\\"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (searchTerm) {
+    request = request.or(
+      `title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`
+    );
   }
-  if (options?.query) {
-    request = request.ilike("title", `%${options.query}%`);
-  }
-  if (options?.category) {
+
+  if (
+    options?.category &&
+    MARKETPLACE_CATEGORY_VALUES.includes(
+      options.category as (typeof MARKETPLACE_CATEGORY_VALUES)[number]
+    )
+  ) {
     request = request.eq("category", options.category);
   }
+
   if (options?.businessId) {
     request = request.eq("business_id", options.businessId);
   }
+
   if (!options?.allRegions && options?.country) {
     request = request.eq("seller_country", options.country);
   }
 
-  const { data, error } = await request;
+  // Stable ordering makes offset pagination more predictable.
+  if (sort === "price-low") {
+    request = request
+      .order("price", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+  } else if (sort === "price-high") {
+    request = request
+      .order("price", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+  } else {
+    request = request
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+  }
+
+  const { data, error } = await request.range(
+    offset,
+    offset + PAGE_SIZE - 1
+  );
+
+  const now = Date.now();
+
+const enrichedListings = (data || []).map((listing) => ({
+  ...listing,
+  is_sponsored: Boolean(
+    listing.is_promoted &&
+    listing.promoted_until &&
+    new Date(listing.promoted_until).getTime() > now
+  ),
+}));
+
   if (error) {
-    console.error(error);
+    console.error("Could not load marketplace listings:", error);
     return { listings: [], nextCursor: null };
   }
 
-  const now = new Date();
-const isActivePromo = (l: any) => {
-  const withinTime = l.is_promoted && l.promoted_until && new Date(l.promoted_until) > now;
-  const withinRegion = !l.promo_region || l.promo_region === options?.country;
-  return withinTime && withinRegion;
-};
-
-const promoted = data.filter(isActivePromo);
-const rest = data.filter((l) => !isActivePromo(l));
-const listings = [...promoted, ...rest];
+  const listings = data || [];
 
   const nextCursor =
-    data.length === PAGE_SIZE ? data[data.length - 1].created_at : null;
+    listings.length === PAGE_SIZE
+      ? String(offset + PAGE_SIZE)
+      : null;
 
-  return { listings, nextCursor };
+  return {
+  listings: enrichedListings,
+  nextCursor,
+};
 }
+
 
 export async function getListing(id: string) {
   const supabase = await createClient();
@@ -122,8 +181,21 @@ const { data: sellerProfile } = await supabase
   const imageUrls = imageUrlsRaw ? JSON.parse(imageUrlsRaw) : [];
 
   if (!title) {
-    redirect(`/marketplace/new?error=${encodeURIComponent("Title is required")}`);
-  }
+  redirect(
+    `/marketplace/new?error=${encodeURIComponent("Title is required")}`
+  );
+}
+
+if (
+  !category ||
+  !MARKETPLACE_CATEGORY_VALUES.includes(
+    category as (typeof MARKETPLACE_CATEGORY_VALUES)[number]
+  )
+) {
+  redirect(
+    `/marketplace/new?error=${encodeURIComponent("Please choose a valid category")}`
+  );
+}
 
   const { data: listing, error } = await supabase
     .from("marketplace_listings")
