@@ -1,13 +1,17 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getListings } from "./actions";
+import {
+  getListings,
+  getMarketplaceDiscoveryData,
+} from "./actions";
 import AppHeader from "@/components/AppHeader";
 import Link from "next/link";
 import styles from "./page.module.css";
 import MarketplaceGrid, {
   type Listing,
 } from "./MarketplaceGrid";
+import MarketplaceDiscovery from "./MarketplaceDiscovery";
 
 export default async function MarketplacePage() {
   const supabase = await createClient();
@@ -26,10 +30,14 @@ export default async function MarketplacePage() {
 
   const myCountry = profile?.country || "";
 
-  const { listings: initial, nextCursor } = await getListings({
-    country: myCountry,
-    sort: "newest",
-  });
+  const [listingResult, discovery] = await Promise.all([
+    getListings({
+      country: myCountry,
+      sort: "newest",
+    }),
+    getMarketplaceDiscoveryData(myCountry),
+  ]);
+
 
   return (
     <main className={styles.wrapper}>
@@ -43,16 +51,32 @@ export default async function MarketplacePage() {
           </p>
         </div>
 
-        <Link href="/marketplace/new" className={styles.sellBtn}>
-          + Sell
-        </Link>
+        <div className={styles.headerActions}>
+  <Link
+    href="/marketplace/my-listings"
+    className={styles.manageBtn}
+  >
+    My listings
+  </Link>
+
+  <Link href="/marketplace/new" className={styles.sellBtn}>
+    + Sell
+  </Link>
+</div>
       </div>
 
+            <MarketplaceDiscovery
+        featured={discovery.featured}
+        local={discovery.local}
+        businesses={discovery.businesses}
+      />
+
       <MarketplaceGrid
-  initial={initial as unknown as Listing[]}
-  initialCursor={nextCursor}
-  myCountry={myCountry}
-/>
+        initial={listingResult.listings as unknown as Listing[]}
+        initialCursor={listingResult.nextCursor}
+        myCountry={myCountry}
+
+      />
     </main>
   );
 }

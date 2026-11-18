@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getListing } from "../actions";
 import BackButton from "@/components/BackButton";
 import Avatar from "@/components/Avatar";
@@ -15,6 +15,7 @@ export default async function ListingPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,6 +34,12 @@ export default async function ListingPage({
   }
 
   const isOwner = listing.seller_id === user.id;
+
+// Removed listings remain accessible to their seller for restoration.
+// Other users should not be able to view them.
+if (listing.status === "removed" && !isOwner) {
+  notFound();
+}
 
   return (
     <main className={styles.wrapper}>
@@ -84,14 +91,17 @@ export default async function ListingPage({
       )}
 
       {isOwner ? (
-        <OwnerActions listingId={listing.id} />
-      ) : (
-        <form action={startListingConversation.bind(null, listing.id)}>
-          <button className={styles.messageBtn} type="submit">
-            Message seller
-          </button>
-        </form>
-      )}
+  <OwnerActions
+  listingId={listing.id}
+  status={listing.status as "active" | "sold" | "removed"}
+/>
+) : listing.status === "active" ? (
+  <form action={startListingConversation.bind(null, listing.id)}>
+    <button className={styles.messageBtn} type="submit">
+      Message seller
+    </button>
+  </form>
+) : null}
     </main>
   );
 }

@@ -69,3 +69,467 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 10px;
 }
+
+
+.businessHero {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 12px;
+}
+
+.businessLogo {
+  width: 76px;
+  height: 76px;
+  margin-bottom: 12px;
+  border-radius: var(--radius);
+  object-fit: cover;
+}
+
+.verified {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: #fff;
+  font-size: 11px;
+}
+
+.catalogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.catalogTitle {
+  margin-bottom: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.catalogCount {
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.catalogCard {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.catalogImage,
+.catalogPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.catalogPlaceholder {
+  background: var(--pink-tint);
+  font-size: 28px;
+}
+
+.catalogItemTitle {
+  overflow: hidden;
+  padding: 9px 9px 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalogItemPrice {
+  padding: 5px 9px 10px;
+  color: var(--coral);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.catalogEmpty {
+  padding: 24px 14px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.ownerControls {
+  margin-top: 18px;
+  margin-bottom: 20px;
+}
+
+.addBusinessListingButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 45px;
+  border-radius: var(--radius-sm);
+  background: var(--coral);
+  color: white;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+
+
+.storefrontBanner {
+  width: 100%;
+  height: 150px;
+  margin: 12px 0 16px;
+  border-radius: var(--radius);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.brandingEditor {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.brandingEditorHeader {
+  margin-bottom: 12px;
+}
+
+.brandingEditorTitle {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.brandingEditorSubtitle {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.brandingEditorActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.brandingUploadButton {
+  flex: 1;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--coral);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.brandingUploadButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.brandingError,
+.brandingSuccess {
+  margin-top: 10px;
+  font-size: 11px;
+}
+
+.brandingError {
+  color: #c0392b;
+}
+
+.brandingSuccess {
+  color: #21865b;
+}
+
+
+
+
+
+
+/* =========================================================
+   BUSINESS STOREFRONT IDENTITY
+   ========================================================= */
+
+.storefrontBanner {
+  width: 100%;
+  height: 155px;
+  margin: 12px 0 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.businessIdentity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: -1px;
+}
+
+.businessLogoWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 70px;
+  height: 70px;
+  margin-top: -24px;
+  overflow: hidden;
+  border: 4px solid var(--surface);
+  border-radius: 18px;
+  color: #fff;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.businessLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.businessIdentityDetails {
+  flex: 1;
+  min-width: 0;
+  padding-top: 11px;
+}
+
+.businessLocation {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.verified {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+/* Owner management */
+
+.ownerControls {
+  margin: 22px 0;
+  padding: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.ownerControlsHeader {
+  margin-bottom: 12px;
+}
+
+.ownerControlsHeader h2 {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ownerControlsHeader p {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.addBusinessListingButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--coral);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.brandingEditor {
+  margin-top: 13px;
+  padding-top: 13px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.brandingEditorHeader {
+  margin-bottom: 11px;
+}
+
+.brandingEditorTitle {
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.brandingEditorSubtitle {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.brandingEditorActions {
+  display: flex;
+  gap: 8px;
+}
+
+.brandingUploadButton {
+  flex: 1;
+  min-width: 0;
+  min-height: 39px;
+  padding: 8px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--coral);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.brandingUploadButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.brandingSuccess,
+.brandingError,
+.brandingHint {
+  margin-top: 9px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.brandingSuccess {
+  color: #21865b;
+}
+
+.brandingError {
+  color: #c0392b;
+}
+
+.brandingHint {
+  color: var(--text-secondary);
+}
+
+/* Business catalog */
+
+.catalogHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.catalogTitle {
+  margin-bottom: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: none;
+}
+
+.catalogCount {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.catalogCard {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.catalogImage,
+.catalogPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+}
+
+.catalogPlaceholder {
+  background: var(--pink-tint);
+  font-size: 28px;
+}
+
+.catalogItemTitle {
+  overflow: hidden;
+  padding: 9px 9px 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalogItemPrice {
+  padding: 5px 9px 10px;
+  color: var(--coral);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.catalogEmpty {
+  padding: 24px 14px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+
+.editBusinessButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  margin-bottom: 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}

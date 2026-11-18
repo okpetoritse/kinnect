@@ -16,7 +16,9 @@ export async function getMessages(friendId: string) {
 
   const { data, error } = await supabase
     .from("messages")
-            .select("id, sender_id, receiver_id, content, image_url, video_url, sticker_id, audio_url, audio_duration, is_burst, listing_id, listing_title, listing_price, listing_currency, listing_image_url, ping_label, reply_to_id, reply_to_content, reply_to_sender_name, call_type, call_status, call_duration, read_at, created_at")
+            .select(
+  "id, sender_id, receiver_id, content, image_url, video_url, sticker_id, audio_url, audio_duration, is_burst, listing_id, listing_title, listing_price, listing_currency, listing_image_url, listing_business_id, listing_business_name, ping_label, reply_to_id, reply_to_content, reply_to_sender_name, call_type, call_status, call_duration, read_at, created_at"
+)
     .or(
       `and(sender_id.eq.${user.id},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${user.id})`
     )
@@ -33,7 +35,7 @@ export async function getMessages(friendId: string) {
     return [];
   }
 
- 
+
   return data;
 }
 
@@ -227,85 +229,108 @@ export async function markMessagesRead(friendId: string) {
     console.error("[markMessagesRead] Failed:", error.message);
   }
 }
+type MessageInboxRow = {
+  id: string;
+  full_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  founding_number: number | string | null;
+  last_message_preview: string | null;
+  last_message_time: string | null;
+  unread_count: number | string | null;
+  cursor_at: string;
+};
+
 export async function getMessagesFriendsPaginated(cursor?: string) {
   const supabase = await createClient();
+
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
-  if (!user) return { friends: [], nextCursor: null };
-
-  const PAGE_SIZE = 20;
-
-  let request = supabase
-    .from("friend_requests")
-        .select(
-      "id, created_at, sender_id, receiver_id, sender:profiles!friend_requests_sender_id_fkey(id, full_name, username, avatar_url, founding_number), receiver:profiles!friend_requests_receiver_id_fkey(id, full_name, username, avatar_url, founding_number)"
-    )
-    .eq("status", "accepted")
-    .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-    .order("created_at", { ascending: false })
-    .limit(PAGE_SIZE);
-
-  if (cursor) {
-    request = request.lt("created_at", cursor);
-  }
-
-  const { data, error } = await request;
-  if (error || !data) {
-    console.error(error);
+  if (authError || !user) {
     return { friends: [], nextCursor: null };
   }
 
-  const friends = data.map((row) => {
-    const isSender = row.sender_id === user.id;
-    const raw = isSender ? row.receiver : row.sender;
-    return Array.isArray(raw) ? raw[0] : raw;
-  });
+  const PAGE_SIZE = 20;
+  let cursorAt: string | null = null;
+  let cursorUserId: string | null = null;
 
-  const friendIds = friends.map((f) => f.id);
-  const { data: recentMessages } = friendIds.length
-    ? await supabase
-        .from("messages")
-        .select("sender_id, receiver_id, content, image_url, video_url, sticker_id, audio_url, ping_label, created_at")
-        .or(
-          friendIds
-            .map((fid: string) => `and(sender_id.eq.${user.id},receiver_id.eq.${fid}),and(sender_id.eq.${fid},receiver_id.eq.${user.id})`)
-            .join(",")
-        )
-        .order("created_at", { ascending: false })
-    : { data: [] };
+  if (cursor) {
+    const separator = cursor.lastIndexOf("|");
 
-  const lastMessageByFriend: Record<string, { preview: string; time: string }> = {};
-  (recentMessages || []).forEach((m) => {
-    const otherId = m.sender_id === user.id ? m.receiver_id : m.sender_id;
-    if (lastMessageByFriend[otherId]) return;
+    if (separator === -1) {
+      return { friends: [], nextCursor: null };
+    }
 
-    let preview = m.content || "";
-    if (m.image_url) preview = "📷 Photo";
-    if (m.video_url) preview = "🎥 Video";
-    if (m.sticker_id) preview = "Sent a sticker";
-    if (m.audio_url) preview = "🎤 Voice message";
-    if (m.ping_label) preview = m.ping_label;
+    cursorAt = cursor.slice(0, separator);
+    cursorUserId = cursor.slice(separator + 1);
 
-    lastMessageByFriend[otherId] = { preview, time: m.created_at };
-  });
+    const cursorDate = new Date(cursorAt);
 
-  const friendsWithPreview = friends.map((f) => ({
-    ...f,
-    lastMessagePreview: lastMessageByFriend[f.id]?.preview || "",
-    lastMessageTime: lastMessageByFriend[f.id]?.time || null,
+    const uuidPattern =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (
+      Number.isNaN(cursorDate.getTime()) ||
+      !uuidPattern.test(cursorUserId)
+    ) {
+      return { friends: [], nextCursor: null };
+    }
+  }
+
+  const rpcClient = supabase as unknown as {
+    rpc: (
+      name: string,
+      args: {
+        p_cursor_at: string | null;
+        p_cursor_user_id: string | null;
+        p_page_size: number;
+      }
+    ) => Promise<{
+      data: MessageInboxRow[] | null;
+      error: { message: string } | null;
+    }>;
+  };
+
+  const { data, error } = await rpcClient.rpc(
+    "get_my_message_inbox",
+    {
+      p_cursor_at: cursorAt,
+      p_cursor_user_id: cursorUserId,
+      p_page_size: PAGE_SIZE,
+    }
+  );
+
+  if (error || !data) {
+    console.error("Could not load unified message inbox:", error);
+
+    return { friends: [], nextCursor: null };
+  }
+
+  const friends = data.map((row) => ({
+    id: row.id,
+    full_name: row.full_name,
+    username: row.username,
+    avatar_url: row.avatar_url,
+    founding_number:
+      row.founding_number == null
+        ? null
+        : Number(row.founding_number),
+    lastMessagePreview: row.last_message_preview || "",
+    lastMessageTime: row.last_message_time,
+    unreadCount: Number(row.unread_count || 0),
   }));
 
-  const sortedFriends = [...friendsWithPreview].sort((a, b) => {
-    const timeA = a.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
-    const timeB = b.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
-    return timeB - timeA;
-  });
+  const lastRow = data[data.length - 1];
 
-  const nextCursor = data.length === PAGE_SIZE ? data[data.length - 1].created_at : null;
+  const nextCursor =
+    data.length === PAGE_SIZE && lastRow
+      ? `${lastRow.cursor_at}|${lastRow.id}`
+      : null;
 
-  return { friends: sortedFriends, nextCursor };
+  return { friends, nextCursor };
 }
 
 export async function sendPing(

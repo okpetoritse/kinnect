@@ -156,3 +156,11 @@
   padding: 4px 9px;
   border-radius: var(--radius-pill);
 }
+
+.ownerActionError {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  color: #c0392b;
+  font-size: 12px;
+  line-height: 1.5;
+}

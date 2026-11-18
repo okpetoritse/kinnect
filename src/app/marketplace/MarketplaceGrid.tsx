@@ -35,6 +35,20 @@ export type Listing = {
   business?: BusinessInfo | BusinessInfo[] | null;
 };
 
+// function filterDiscoveryDuplicates(
+//   listings: Listing[],
+//   discoveryListingIds: string[],
+//   shouldExclude: boolean
+// ): Listing[] {
+//   if (!shouldExclude || discoveryListingIds.length === 0) {
+//     return listings;
+//   }
+
+//   const excludedIds = new Set(discoveryListingIds);
+
+//   return listings.filter((listing) => !excludedIds.has(listing.id));
+// }
+
 type SortOption = "newest" | "price-low" | "price-high";
 
 export default function MarketplaceGrid({
@@ -57,12 +71,31 @@ export default function MarketplaceGrid({
   const [searching, setSearching] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const requestVersion = useRef(0);
+    const requestVersion = useRef(0);
+  const lastSearchKey = useRef<string | null>(null);
+
+  const searchKey = JSON.stringify([
+    query,
+    category,
+    allRegions,
+    myCountry,
+    sort,
+  ]);
 
   useEffect(() => {
+    // The server already supplied the initial results.
+    // This key check also prevents a duplicate request in React Strict Mode.
+    if (lastSearchKey.current === null) {
+      lastSearchKey.current = searchKey;
+      return;
+    }
+
+    if (lastSearchKey.current === searchKey) return;
+
+    lastSearchKey.current = searchKey;
+
     const version = ++requestVersion.current;
     let cancelled = false;
-
 
     const timeout = window.setTimeout(async () => {
       setSearching(true);
@@ -77,7 +110,7 @@ export default function MarketplaceGrid({
         });
 
         if (!cancelled && version === requestVersion.current) {
-          setListings(result.listings as Listing[]);
+         setListings(result.listings as Listing[]);
           setCursor(result.nextCursor);
         }
       } catch (error) {
@@ -93,7 +126,14 @@ export default function MarketplaceGrid({
       cancelled = true;
       window.clearTimeout(timeout);
     };
-  }, [query, category, allRegions, myCountry, sort]);
+  }, [
+    query,
+    category,
+    allRegions,
+    myCountry,
+    sort,
+    searchKey,
+  ]);
 
   async function handleLoadMore() {
     if (!cursor || loadingMore || searching) return;
@@ -117,9 +157,15 @@ export default function MarketplaceGrid({
             previous.map((listing) => listing.id)
           );
 
+          //           const visibleResults = filterDiscoveryDuplicates(
+          //   result.listings as Listing[],
+          //   discoveryListingIds,
+          //   !query.trim() && !category
+          // );
+
           const newListings = (result.listings as Listing[]).filter(
-            (listing) => !existingIds.has(listing.id)
-          );
+  (listing) => !existingIds.has(listing.id)
+);
 
           return [...previous, ...newListings];
         });
@@ -233,7 +279,7 @@ export default function MarketplaceGrid({
 
       <div className={styles.resultsHeading}>
         <h2>
-          {category || (query.trim() ? "Search results" : "Discover")}
+         {category || (query.trim() ? "Search results" : "Fresh on Kinnect")}
         </h2>
 
         {searching && (
