@@ -1,0 +1,76 @@
+
+.wrapper {
+  width: min(100% - 32px, 560px);
+  margin: 0 auto;
+  padding: 24px 0 64px;
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: 18px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.subtitle {
+  margin: 8px 0 24px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.error {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--coral-tint);
+  color: var(--coral);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.form {
+  width: 100%;
+}
+
+.sectionHeading {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.noImages {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.formActions {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.cancelButton {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cancelButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .wrapper {
+    width: min(100% - 24px, 560px);
+    padding-top: 16px;
+  }
+}

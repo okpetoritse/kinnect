@@ -1175,3 +1175,12 @@ max-width: 100%;
   color: var(--text-secondary);
   background: var(--surface);
 }
+
+
+.listingCardBusiness {
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 600;
+}

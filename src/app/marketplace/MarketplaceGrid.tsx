@@ -1,23 +1,55 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { getListings } from "./actions";
 import SponsoredBadge from "@/components/SponsoredBadge";
+import { MARKETPLACE_CATEGORIES } from "@/lib/marketplace/categories";
 import styles from "./page.module.css";
 
-type Listing = {
+type SellerInfo = {
+  id: string;
+  full_name: string | null;
+};
+
+type BusinessInfo = {
+  id: string;
+  name: string;
+  verified: boolean | null;
+};
+
+export type Listing = {
   id: string;
   title: string;
+  is_sponsored?: boolean;
   price: number | null;
   currency: string | null;
   category: string | null;
   location: string | null;
-  image_urls: string[];
+  image_urls: string[] | null;
   is_promoted?: boolean;
   promoted_until?: string | null;
   seller_country?: string | null;
+  seller?: SellerInfo | SellerInfo[] | null;
+  business?: BusinessInfo | BusinessInfo[] | null;
 };
+
+// function filterDiscoveryDuplicates(
+//   listings: Listing[],
+//   discoveryListingIds: string[],
+//   shouldExclude: boolean
+// ): Listing[] {
+//   if (!shouldExclude || discoveryListingIds.length === 0) {
+//     return listings;
+//   }
+
+//   const excludedIds = new Set(discoveryListingIds);
+
+//   return listings.filter((listing) => !excludedIds.has(listing.id));
+// }
+
+type SortOption = "newest" | "price-low" | "price-high";
 
 export default function MarketplaceGrid({
   initial,
@@ -29,105 +61,355 @@ export default function MarketplaceGrid({
   myCountry: string;
 }) {
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
   const [allRegions, setAllRegions] = useState(false);
+  const [sort, setSort] = useState<SortOption>("newest");
+
   const [listings, setListings] = useState(initial);
   const [cursor, setCursor] = useState(initialCursor);
+
+  const [searching, setSearching] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
 
+    const requestVersion = useRef(0);
+  const lastSearchKey = useRef<string | null>(null);
+
+  const searchKey = JSON.stringify([
+    query,
+    category,
+    allRegions,
+    myCountry,
+    sort,
+  ]);
+
   useEffect(() => {
-    const timeout = setTimeout(async () => {
-      const { listings: data, nextCursor } = await getListings({
-        query,
-        country: myCountry,
-        allRegions,
-      });
-      setListings(data as any);
-      setCursor(nextCursor);
+    // The server already supplied the initial results.
+    // This key check also prevents a duplicate request in React Strict Mode.
+    if (lastSearchKey.current === null) {
+      lastSearchKey.current = searchKey;
+      return;
+    }
+
+    if (lastSearchKey.current === searchKey) return;
+
+    lastSearchKey.current = searchKey;
+
+    const version = ++requestVersion.current;
+    let cancelled = false;
+
+    const timeout = window.setTimeout(async () => {
+      setSearching(true);
+
+      try {
+        const result = await getListings({
+          query,
+          category: category || undefined,
+          country: myCountry,
+          allRegions,
+          sort,
+        });
+
+        if (!cancelled && version === requestVersion.current) {
+         setListings(result.listings as Listing[]);
+          setCursor(result.nextCursor);
+        }
+      } catch (error) {
+        console.error("Marketplace search failed:", error);
+      } finally {
+        if (!cancelled && version === requestVersion.current) {
+          setSearching(false);
+        }
+      }
     }, 300);
-    return () => clearTimeout(timeout);
-  }, [query, allRegions, myCountry]);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [
+    query,
+    category,
+    allRegions,
+    myCountry,
+    sort,
+    searchKey,
+  ]);
 
   async function handleLoadMore() {
-    if (!cursor) return;
+    if (!cursor || loadingMore || searching) return;
+
+    const version = requestVersion.current;
     setLoadingMore(true);
-    const { listings: more, nextCursor } = await getListings({
-      query,
-      cursor,
-      country: myCountry,
-      allRegions,
-    });
-    setListings((prev) => [...prev, ...(more as any)]);
-    setCursor(nextCursor);
-    setLoadingMore(false);
+
+    try {
+      const result = await getListings({
+        query,
+        category: category || undefined,
+        cursor,
+        country: myCountry,
+        allRegions,
+        sort,
+      });
+
+      if (version === requestVersion.current) {
+        setListings((previous) => {
+          const existingIds = new Set(
+            previous.map((listing) => listing.id)
+          );
+
+          //           const visibleResults = filterDiscoveryDuplicates(
+          //   result.listings as Listing[],
+          //   discoveryListingIds,
+          //   !query.trim() && !category
+          // );
+
+          const newListings = (result.listings as Listing[]).filter(
+  (listing) => !existingIds.has(listing.id)
+);
+
+          return [...previous, ...newListings];
+        });
+
+        setCursor(result.nextCursor);
+      }
+    } catch (error) {
+      console.error("Could not load more listings:", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function clearFilters() {
+    setQuery("");
+    setCategory("");
+    setSort("newest");
+    setAllRegions(false);
   }
 
   return (
-    <>
-      <input
-        className={styles.searchInput}
-        placeholder="Search listings..."
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-      />
+    <div className={styles.discovery}>
+      <div className={styles.searchArea}>
+        <input
+          className={styles.searchInput}
+          placeholder="What are you looking for?"
+          aria-label="Search products and services"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
 
-      <div className={styles.regionRow}>
-        <span>
-          {allRegions
-            ? "Showing all regions"
-            : myCountry
-            ? `Showing listings in ${myCountry}`
-            : "Set your country in Profile to see local listings"}
-        </span>
-        {myCountry && (
+        <p className={styles.discoveryHint}>
+          Discover products, services and people worth knowing.
+        </p>
+      </div>
+
+      <section className={styles.categorySection}>
+        <div className={styles.categoryHeading}>
+          Explore categories
+        </div>
+
+        <div className={styles.categoryScroller}>
           <button
-            className={styles.regionToggle}
-            onClick={() => setAllRegions((prev) => !prev)}
+            type="button"
+            className={`${styles.categoryChip} ${
+              category === "" ? styles.categoryChipActive : ""
+            }`}
+            onClick={() => setCategory("")}
+            aria-pressed={category === ""}
           >
-            {allRegions ? "Show my region only" : "Show all regions"}
+            <span>✨</span>
+            <span>All</span>
           </button>
+
+          {MARKETPLACE_CATEGORIES.map((item) => (
+            <button
+              type="button"
+              key={item.value}
+              className={`${styles.categoryChip} ${
+                category === item.value
+                  ? styles.categoryChipActive
+                  : ""
+              }`}
+              onClick={() => setCategory(item.value)}
+              aria-pressed={category === item.value}
+            >
+              <span>{item.icon}</span>
+              <span>{item.value}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <div className={styles.discoveryControls}>
+        <div className={styles.regionRow}>
+          <span>
+            {allRegions
+              ? "Showing all regions"
+              : myCountry
+              ? `In ${myCountry}`
+              : "Showing listings from all regions"}
+          </span>
+
+          {myCountry && (
+            <button
+              type="button"
+              className={styles.regionToggle}
+              onClick={() => setAllRegions((previous) => !previous)}
+            >
+              {allRegions ? "My region" : "All regions"}
+            </button>
+          )}
+        </div>
+
+        <label className={styles.sortControl}>
+          <span>Sort:</span>
+
+          <select
+            value={sort}
+            onChange={(event) =>
+              setSort(event.target.value as SortOption)
+            }
+            aria-label="Sort listings"
+          >
+            <option value="newest">Newest first</option>
+            <option value="price-low">Price: low to high</option>
+            <option value="price-high">Price: high to low</option>
+          </select>
+        </label>
+      </div>
+
+      <div className={styles.resultsHeading}>
+        <h2>
+         {category || (query.trim() ? "Search results" : "Fresh on Kinnect")}
+        </h2>
+
+        {searching && (
+          <span className={styles.loadingLabel}>Updating…</span>
         )}
       </div>
 
-      <div className={styles.grid}>
-        {listings.length > 0 ? (
-          listings.map((l) => (
-            <Link key={l.id} href={`/marketplace/${l.id}`} className={styles.card}>
-              {l.image_urls?.[0] ? (
-                <img src={l.image_urls[0]} className={styles.cardImage} alt="" />
-              ) : (
-                <div className={styles.cardImagePlaceholder}>📦</div>
-              )}
-              <div className={styles.cardBody}>
-                {l.is_promoted &&
-                  l.promoted_until &&
-                  new Date(l.promoted_until) > new Date() && <SponsoredBadge />}
-                <div className={styles.cardTitle}>{l.title}</div>
-                {l.price != null && (
-                  <div className={styles.cardPrice}>
-                    {l.currency || "₦"}
-                    {l.price.toLocaleString()}
+      {listings.length > 0 ? (
+        <div className={styles.grid}>
+          {listings.map((listing) => {
+            const seller = Array.isArray(listing.seller)
+              ? listing.seller[0]
+              : listing.seller;
+
+            const business = Array.isArray(listing.business)
+              ? listing.business[0]
+              : listing.business;
+
+            const isSponsored = listing.is_sponsored === true;
+
+            return (
+              <Link
+                key={listing.id}
+                href={`/marketplace/${listing.id}`}
+                className={styles.card}
+              >
+                {listing.image_urls?.[0] ? (
+                  <img
+                    src={listing.image_urls[0]}
+                    className={styles.cardImage}
+                    alt={listing.title}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className={styles.cardImagePlaceholder}>
+                    <span>
+                      {MARKETPLACE_CATEGORIES.find(
+                        (item) => item.value === listing.category
+                      )?.icon || "🛍️"}
+                    </span>
                   </div>
                 )}
-                <div className={styles.cardMeta}>
-                  {[l.category, l.location].filter(Boolean).join(" · ")}
-                </div>
-              </div>
-            </Link>
-          ))
-        ) : (
-          <p className={styles.empty}>No listings found</p>
-        )}
 
-        {cursor && (
-          <button
-            className={styles.loadMoreBtn}
-            onClick={handleLoadMore}
-            disabled={loadingMore}
-          >
-            {loadingMore ? "Loading..." : "Load more"}
-          </button>
-        )}
-      </div>
-    </>
+                <div className={styles.cardBody}>
+                  {isSponsored && <SponsoredBadge />}
+
+                  <div className={styles.cardTitle}>
+                    {listing.title}
+                  </div>
+
+                  {listing.price != null ? (
+                    <div className={styles.cardPrice}>
+                      {listing.currency || "₦"}
+                      {listing.price.toLocaleString()}
+                    </div>
+                  ) : (
+                    <div className={styles.cardPrice}>
+                      Contact for price
+                    </div>
+                  )}
+
+                  <div className={styles.cardMeta}>
+                    {[listing.category, listing.location]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+
+                  <div className={styles.cardSeller}>
+                    {business?.name ||
+                      seller?.full_name ||
+                      "Individual seller"}
+
+                    {business?.verified && (
+                      <span className={styles.verifiedMark}>
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={styles.emptyDiscovery}>
+          <div className={styles.emptyDiscoveryIcon}>
+            {query.trim() || category ? "🔎" : "🛍️"}
+          </div>
+
+          <h3>
+            {query.trim() || category
+              ? "No matching listings yet"
+              : "Be part of the first discoveries"}
+          </h3>
+
+          <p>
+            {query.trim() || category
+              ? "Try another search or explore a different category."
+              : "There are no listings yet. You could be among the first people to introduce something to Kinnect Marketplace."}
+          </p>
+
+          {query.trim() || category ? (
+            <button
+              type="button"
+              className={styles.clearFiltersBtn}
+              onClick={clearFilters}
+            >
+              Clear filters
+            </button>
+          ) : (
+            <Link
+              href="/marketplace/new"
+              className={styles.firstListingBtn}
+            >
+              Post the first listing
+            </Link>
+          )}
+        </div>
+      )}
+
+      {cursor && listings.length > 0 && (
+        <button
+          type="button"
+          className={styles.loadMoreBtn}
+          onClick={handleLoadMore}
+          disabled={loadingMore || searching}
+        >
+          {loadingMore ? "Loading..." : "Explore more"}
+        </button>
+      )}
+    </div>
   );
 }

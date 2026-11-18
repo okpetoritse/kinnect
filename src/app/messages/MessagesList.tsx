@@ -65,7 +65,14 @@ export default function MessagesList({
     if (!cursor) return;
     setLoadingMore(true);
     const { friends: more, nextCursor } = await getMessagesFriendsPaginated(cursor);
-    setFriends((prev) => [...prev, ...(more as any)]);
+    setFriends((prev) => {
+  const existingIds = new Set(prev.map((friend) => friend.id));
+  const newFriends = more.filter(
+    (friend) => !existingIds.has(friend.id)
+  );
+
+  return [...prev, ...newFriends];
+});
     setCursor(nextCursor);
     setLoadingMore(false);
   }
@@ -73,8 +80,9 @@ export default function MessagesList({
   if (friends.length === 0) {
     return (
       <p className={styles.empty}>
-        Add some friends first to start messaging.
-      </p>
+  Your conversations will appear here. Message a friend or contact a seller
+  through Marketplace to get started.
+</p>
     );
   }
 

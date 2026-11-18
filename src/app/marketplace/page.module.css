@@ -1,8 +1,9 @@
 .wrapper {
   min-height: 100vh;
-  max-width: 480px;
+  width: 100%;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 20px clamp(16px, 3vw, 32px);
   padding-bottom: 90px;
 }
 
@@ -40,8 +41,27 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+@media (min-width: 600px) {
+  .grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (min-width: 850px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
 }
 
 .card {
@@ -126,4 +146,474 @@
 .regionToggle {
   color: var(--coral);
   font-weight: 600;
+}
+
+
+/* =========================================================
+   MARKETPLACE DISCOVERY
+   ========================================================= */
+
+.pageSubtitle {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.discovery {
+  width: 100%;
+}
+
+.searchArea {
+  margin: 18px 0 22px;
+}
+
+.discoveryHint {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.categorySection {
+  margin-bottom: 20px;
+}
+
+.categoryHeading {
+  margin-bottom: 11px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.categoryScroller {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 10px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.categoryScroller::-webkit-scrollbar {
+  display: none;
+}
+
+.categoryChip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.categoryChipActive {
+  border-color: var(--coral);
+  background: var(--pink-tint);
+  color: var(--coral);
+}
+
+.discoveryControls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.regionRow {
+  margin-bottom: 0;
+}
+
+.sortControl {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.sortControl select {
+  max-width: 165px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.resultsHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.resultsHeading h2 {
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--text-primary);
+}
+
+.loadingLabel {
+  color: var(--text-secondary);
+  font-size: 10px;
+}
+
+.card {
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.cardTitle {
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  min-height: 35px;
+}
+
+.cardSeller {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  margin-top: 7px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.verifiedMark {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.emptyDiscovery {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 42px 20px;
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius);
+  text-align: center;
+}
+
+.emptyDiscoveryIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 15px;
+  border-radius: 20px;
+  background: var(--pink-tint);
+  font-size: 27px;
+}
+
+.emptyDiscovery h3 {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.emptyDiscovery p {
+  max-width: 270px;
+  margin-top: 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.firstListingBtn,
+.clearFiltersBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  margin-top: 17px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--coral);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.clearFiltersBtn {
+  background: var(--pink-tint);
+  color: var(--coral);
+}
+
+@media (max-width: 360px) {
+  .discoveryControls {
+    gap: 10px;
+  }
+
+  .sortControl {
+    justify-content: space-between;
+  }
+}
+
+
+
+/* =========================================================
+   MARKETPLACE DISCOVERY FEED
+   ========================================================= */
+
+.discoveryFeed {
+  display: flex;
+  flex-direction: column;
+  gap: 23px;
+  margin: 20px 0 26px;
+}
+
+.discoverySection {
+  min-width: 0;
+}
+
+.discoverySectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+.discoverySectionTitle {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.discoverySectionSubtitle {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.discoverySeeAll {
+  flex: 0 0 auto;
+  color: var(--coral);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.discoveryScroller,
+.businessDiscoveryScroller {
+  display: flex;
+  gap: 11px;
+  overflow-x: auto;
+  padding: 2px 1px 8px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.discoveryScroller::-webkit-scrollbar,
+.businessDiscoveryScroller::-webkit-scrollbar {
+  display: none;
+}
+
+.discoveryListingCard {
+  flex: 0 0 154px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.discoveryImageWrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--border-subtle);
+}
+
+.discoveryImage,
+.discoveryImagePlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1 / 0.88;
+  object-fit: cover;
+}
+
+.discoveryImagePlaceholder {
+  background: linear-gradient(
+    135deg,
+    var(--pink-tint),
+    var(--amber-tint)
+  );
+  font-size: 30px;
+}
+
+.discoveryFeaturedBadge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+}
+
+.discoveryCardBody {
+  padding: 9px;
+}
+
+.discoveryCardTitle {
+  min-height: 34px;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.discoveryCardPrice {
+  margin-top: 5px;
+  color: var(--coral);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.discoveryCardMeta {
+  overflow: hidden;
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.businessDiscoveryCard {
+  flex: 0 0 142px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+.businessDiscoveryCover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 91px;
+  overflow: hidden;
+  color: white;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.businessDiscoveryLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.businessDiscoveryName {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  padding: 9px 9px 0;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.businessVerified {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--coral);
+  color: #fff;
+  font-size: 9px;
+}
+
+.businessDiscoveryMeta {
+  overflow: hidden;
+  padding: 4px 9px 10px;
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discoveryFeed + .discovery {
+  margin-top: 25px;
+}
+
+
+
+
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.manageBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid var(--border, #e5e5e5);
+  border-radius: 10px;
+  color: var(--foreground, #171717);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .headerActions {
+    width: 100%;
+  }
+
+  .headerActions > a {
+    flex: 1;
+  }
 }

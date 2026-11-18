@@ -1,6 +1,6 @@
  "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore, useState } from "react";
 import {
   toggleMessageReaction,
   getMessageReactions,
@@ -36,6 +36,7 @@ import Link from "next/link";
 import styles from "./page.module.css";
 import LiveWaveform from "@/components/LiveWaveform";
 import MediaViewer from "@/components/MediaViewer";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   Phone,
   Video,
@@ -52,8 +53,6 @@ import {
   BookHeart,
   Volume2,
   VolumeX,
-  Check,      // <-- ADDED
-  CheckCheck, // <-- ADDED
   Circle,
 } from "lucide-react";
 import MediaComposer from "@/components/MediaComposer";
@@ -74,6 +73,8 @@ type Message = {
   listing_price?: number | null;
   listing_currency?: string | null;
   listing_image_url?: string | null;
+  listing_business_id?: string | null;
+  listing_business_name?: string | null;
   ping_label?: string | null;
   reply_to_id?: string | null;
   reply_to_content?: string | null;
@@ -86,6 +87,42 @@ type Message = {
   read_at?: string | null; // <-- ADDED
   reactions?: { userId: string; emoji: string }[];
 };
+
+type MessageReaction = NonNullable<Message["reactions"]>[number];
+
+type ReactionUpdateBroadcast = {
+  messageId: string;
+  reactions: MessageReaction[];
+};
+
+type MessageDeletedBroadcast = {
+  messageId: string;
+};
+
+type PendingChatBroadcast =
+  | {
+      event: "reaction_update";
+      payload: ReactionUpdateBroadcast;
+    }
+  | {
+      event: "message_deleted";
+      payload: MessageDeletedBroadcast;
+    };
+
+function subscribeToHydration() {
+  return () => {};
+}
+
+function getClientHydrationSnapshot() {
+  return true;
+}
+
+function getServerHydrationSnapshot() {
+  return false;
+}
+
+
+
 
 function formatLastSeen(iso?: string | null) {
   if (!iso) return "Offline";
@@ -155,7 +192,7 @@ export default function ChatThread({
   friendId: string;
   friendName: string;
   friendAvatarUrl: string | null;
-  friendLastSeen?: string | null; 
+  friendLastSeen?: string | null;
   currentUserId: string;
   initialMessages: Message[];
 }) {
@@ -175,7 +212,7 @@ export default function ChatThread({
   const [friendIsTyping, setFriendIsTyping] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [recordingBurst, setRecordingBurst] = useState(false);
+  const [, setRecordingBurst] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showStickers, setShowStickers] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -188,15 +225,21 @@ export default function ChatThread({
   const [iBlockedThem, setIBlockedThem] = useState(false);
   const [theyBlockedMe, setTheyBlockedMe] = useState(false);
   const [showPingMenu, setShowPingMenu] = useState(false);
-    const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+    const mounted = useSyncExternalStore(
+  subscribeToHydration,
+  getClientHydrationSnapshot,
+  getServerHydrationSnapshot
+);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const [viewer, setViewer] = useState<{ messageId: string; index: number } | null>(null);
   const [recordingStream, setRecordingStream] = useState<MediaStream | null>(null);
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const [pendingChatBroadcasts, setPendingChatBroadcasts] =
+  useState<PendingChatBroadcast[]>([]);
+
+const processedBroadcastCountRef = useRef(0);
+  const tempMessageSequenceRef = useRef(0);
   const stopTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -208,6 +251,11 @@ export default function ChatThread({
   const [mediaByMessage, setMediaByMessage] = useState<Record<string, { url: string; type: "image" | "video" }[]>>({});
   const onlineIds = usePresence(currentUserId);
   const friendIsOnline = onlineIds.has(friendId);
+  function createTemporaryMessageId() {
+  tempMessageSequenceRef.current += 1;
+
+  return `temp-${currentUserId}-${tempMessageSequenceRef.current}`;
+}
 
   async function handleCallEnded(
     type: "audio" | "video",
@@ -215,7 +263,7 @@ export default function ChatThread({
     duration: number
   ) {
     const newMsg: Message = {
-      id: `temp-${Date.now()}`,
+      id: createTemporaryMessageId(),
       sender_id: currentUserId,
       content: null,
       call_type: type,
@@ -262,42 +310,85 @@ export default function ChatThread({
 
   useEffect(() => {
   markMessagesRead(friendId);
+
   channelRef.current?.send({
     type: "broadcast",
     event: "messages_read",
     payload: { readBy: currentUserId },
   });
-}, [friendId]);
+}, [friendId, currentUserId]);
 
 
 
   useEffect(() => {
-    async function loadReactions() {
-      const ids = messages.map((m) => m.id).filter((id) => !id.startsWith("temp-"));
-      if (ids.length === 0) return;
-      const rows = await getMessageReactions(ids);
-      const byMsg = new Map<string, { userId: string; emoji: string }[]>();
-      rows.forEach((r) => {
-        const list = byMsg.get(r.message_id) || [];
-        list.push({ userId: r.user_id, emoji: r.emoji });
-        byMsg.set(r.message_id, list);
+  let cancelled = false;
+
+  async function loadReactions() {
+    const ids = initialMessages
+      .map((message) => message.id)
+      .filter((id) => !id.startsWith("temp-"));
+
+    if (ids.length === 0) return;
+
+    const rows = await getMessageReactions(ids);
+
+    if (cancelled) return;
+
+    const byMsg = new Map<string, MessageReaction[]>();
+
+    rows.forEach((row) => {
+      const list = byMsg.get(row.message_id) || [];
+
+      list.push({
+        userId: row.user_id,
+        emoji: row.emoji,
       });
-      setMessages((prev) =>
-        prev.map((m) => ({ ...m, reactions: byMsg.get(m.id) || m.reactions }))
-      );
-    }
-    loadReactions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+      byMsg.set(row.message_id, list);
+    });
+
+    setMessages((previous) =>
+      previous.map((message) => ({
+        ...message,
+        reactions: byMsg.get(message.id) || message.reactions,
+      }))
+    );
+  }
+
+  void loadReactions();
+
+  return () => {
+    cancelled = true;
+  };
+}, [initialMessages]);
 
 
 
 // ADD THIS
+const mediaMessageIdsKey = messages
+  .map((message) => message.id)
+  .filter((id) => !id.startsWith("temp-"))
+  .join(",");
+
 useEffect(() => {
-  const ids = messages.map((m) => m.id).filter((id) => !id.startsWith("temp-"));
+  const ids = mediaMessageIdsKey
+    ? mediaMessageIdsKey.split(",")
+    : [];
+
   if (ids.length === 0) return;
-  getMessageMediaBatch(ids).then(setMediaByMessage);
-}, [messages.length]);
+
+  let cancelled = false;
+
+  getMessageMediaBatch(ids).then((result) => {
+    if (!cancelled) {
+      setMediaByMessage(result);
+    }
+  });
+
+  return () => {
+    cancelled = true;
+  };
+}, [mediaMessageIdsKey]);
 
     useEffect(() => {
     return () => {
@@ -321,11 +412,17 @@ useEffect(() => {
     const channel = supabase
       .channel(roomName)
       .on("broadcast", { event: "reaction_update" }, (payload) => {
-        const { messageId, reactions } = payload.payload as any;
-        setMessages((prev) =>
-          prev.map((m) => (m.id === messageId ? { ...m, reactions } : m))
-        );
-      })
+  const { messageId, reactions } =
+    payload.payload as ReactionUpdateBroadcast;
+
+  setMessages((previous) =>
+    previous.map((message) =>
+      message.id === messageId
+        ? { ...message, reactions }
+        : message
+    )
+  );
+})
       .on("broadcast", { event: "new_message" }, (payload) => {
         const newMsg = payload.payload as Message;
         setMessages((prev) => {
@@ -356,9 +453,13 @@ useEffect(() => {
 })
 
         .on("broadcast", { event: "message_deleted" }, (payload) => {
-        const { messageId } = payload.payload as any;
-        setMessages((prev) => prev.filter((m) => m.id !== messageId));
-      })
+  const { messageId } =
+    payload.payload as MessageDeletedBroadcast;
+
+  setMessages((previous) =>
+    previous.filter((message) => message.id !== messageId)
+  );
+})
       .on("broadcast", { event: "typing" }, (payload) => {
         if (payload.payload.userId !== currentUserId) {
           setFriendIsTyping(true);
@@ -378,6 +479,32 @@ useEffect(() => {
       if (stopTypingTimeoutRef.current) clearTimeout(stopTypingTimeoutRef.current);
     };
   }, [currentUserId, friendId]);
+
+  useEffect(() => {
+  const pending = pendingChatBroadcasts.slice(
+    processedBroadcastCountRef.current
+  );
+
+  if (pending.length === 0) return;
+
+  pending.forEach((broadcast) => {
+    if (broadcast.event === "reaction_update") {
+      void channelRef.current?.send({
+        type: "broadcast",
+        event: "reaction_update",
+        payload: broadcast.payload,
+      });
+    } else {
+      void channelRef.current?.send({
+        type: "broadcast",
+        event: "message_deleted",
+        payload: broadcast.payload,
+      });
+    }
+  });
+
+  processedBroadcastCountRef.current = pendingChatBroadcasts.length;
+}, [pendingChatBroadcasts]);
 
     const isFirstLoadRef = useRef(true);
 
@@ -433,7 +560,7 @@ useEffect(() => {
   async function handlePing(label: string) {
     setShowPingMenu(false);
     const newMsg: Message = {
-      id: `temp-${Date.now()}`,
+      id: createTemporaryMessageId(),
       sender_id: currentUserId,
       content: null,
       ping_label: label,
@@ -448,6 +575,29 @@ useEffect(() => {
     await sendPing(friendId, label);
   }
 
+  async function handleDeleteViewerMessage(messageId: string) {
+  const result = await deleteMessage(messageId);
+
+  if (result?.error) {
+    alert(result.error);
+    return;
+  }
+
+  setMessages((previous) =>
+    previous.filter((message) => message.id !== messageId)
+  );
+
+  setPendingChatBroadcasts((previous) => [
+  ...previous,
+  {
+    event: "message_deleted",
+    payload: { messageId },
+  },
+]);
+
+  setViewer(null);
+}
+
   async function handleReact(msg: Message, emoji: string) {
     setReactionPickerFor(null);
     const current = msg.reactions || [];
@@ -461,11 +611,16 @@ useEffect(() => {
     setMessages((prev) =>
       prev.map((m) => (m.id === msg.id ? { ...m, reactions: updated } : m))
     );
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "reaction_update",
-      payload: { messageId: msg.id, reactions: updated },
-    });
+    setPendingChatBroadcasts((previous) => [
+  ...previous,
+  {
+    event: "reaction_update",
+    payload: {
+      messageId: msg.id,
+      reactions: updated,
+    },
+  },
+]);
     await toggleMessageReaction(msg.id, emoji);
   }
 
@@ -521,7 +676,7 @@ useEffect(() => {
     setReplyTarget(null);
   }
 
-  
+
 
   async function handleGifSelect(gifUrl: string) {
     setShowGifPicker(false);
@@ -548,7 +703,7 @@ useEffect(() => {
   async function handleStickerSelect(stickerId: StickerId) {
     setShowStickers(false);
 
-        const tempId = `temp-${Date.now()}`;
+        const tempId = createTemporaryMessageId();
     const newMsg: Message = {
       id: tempId,
       sender_id: currentUserId,
@@ -882,6 +1037,11 @@ useEffect(() => {
                                 {msg.listing_price.toLocaleString()}
                               </div>
                             )}
+                            {msg.listing_business_name && (
+  <div className={styles.listingCardBusiness}>
+    Business · {msg.listing_business_name}
+  </div>
+)}
                           </div>
                         </Link>
                                             ) : msg.video_url ? (
@@ -940,19 +1100,28 @@ useEffect(() => {
                     </div>
 
                     {msg.reactions && msg.reactions.length > 0 && (
-                      <div className={isMine ? styles.timestampMine : styles.timestampTheirs}>
-                        {Object.entries(
-                          msg.reactions.reduce((acc: any, r) => {
-                            acc[r.emoji] = (acc[r.emoji] || 0) + 1;
-                            return acc;
-                          }, {})
-                        ).map(([emoji, count]) => (
-                          <span key={emoji} className={styles.reactionBadge}>
-                            {emoji} {count as number}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+  <div
+    className={
+      isMine ? styles.timestampMine : styles.timestampTheirs
+    }
+  >
+    {Object.entries(
+      msg.reactions.reduce<Record<string, number>>(
+        (counts, reaction) => {
+          counts[reaction.emoji] =
+            (counts[reaction.emoji] || 0) + 1;
+
+          return counts;
+        },
+        {}
+      )
+    ).map(([emoji, count]) => (
+      <span key={emoji} className={styles.reactionBadge}>
+        {emoji} {count}
+      </span>
+    ))}
+  </div>
+)}
 
                     {reactionPickerFor === msg.id && (
                       <div className={styles.actionMenu}>
@@ -1089,7 +1258,7 @@ useEffect(() => {
           )}
 
           <div className={styles.composer}>
-            
+
             {!recording && (
               <>
                 <button
@@ -1245,21 +1414,7 @@ useEffect(() => {
               handleStartReply(viewerMsg);
             }}
             onReact={(emoji) => handleReact(viewerMsg, emoji)}
-            onDelete={async () => {
-              const id = viewerMsg.id;
-              const result = await deleteMessage(id);
-              if (result?.error) {
-                alert(result.error);
-                return;
-              }
-              setMessages((prev) => prev.filter((m) => m.id !== id));
-              channelRef.current?.send({
-                type: "broadcast",
-                event: "message_deleted",
-                payload: { messageId: id },
-              });
-              setViewer(null);
-            }}
+            onDelete={() => handleDeleteViewerMessage(viewerMsg.id)}
           />
         );
       })()}

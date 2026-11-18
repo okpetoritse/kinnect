@@ -1,16 +1,25 @@
+
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { getListings } from "./actions";
+import {
+  getListings,
+  getMarketplaceDiscoveryData,
+} from "./actions";
 import AppHeader from "@/components/AppHeader";
 import Link from "next/link";
 import styles from "./page.module.css";
-import MarketplaceGrid from "./MarketplaceGrid";
+import MarketplaceGrid, {
+  type Listing,
+} from "./MarketplaceGrid";
+import MarketplaceDiscovery from "./MarketplaceDiscovery";
 
 export default async function MarketplacePage() {
   const supabase = await createClient();
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
   if (!user) redirect("/login");
 
   const { data: profile } = await supabase
@@ -20,18 +29,54 @@ export default async function MarketplacePage() {
     .single();
 
   const myCountry = profile?.country || "";
-  const { listings: initial, nextCursor } = await getListings({ country: myCountry });
+
+  const [listingResult, discovery] = await Promise.all([
+    getListings({
+      country: myCountry,
+      sort: "newest",
+    }),
+    getMarketplaceDiscoveryData(myCountry),
+  ]);
+
 
   return (
     <main className={styles.wrapper}>
       <AppHeader />
+
       <div className={styles.headerRow}>
-        <h1 className={styles.heading}>Marketplace</h1>
-        <Link href="/marketplace/new" className={styles.sellBtn}>
-          + Sell
-        </Link>
+        <div>
+          <h1 className={styles.heading}>Marketplace</h1>
+          <p className={styles.pageSubtitle}>
+            Discover something interesting.
+          </p>
+        </div>
+
+        <div className={styles.headerActions}>
+  <Link
+    href="/marketplace/my-listings"
+    className={styles.manageBtn}
+  >
+    My listings
+  </Link>
+
+  <Link href="/marketplace/new" className={styles.sellBtn}>
+    + Sell
+  </Link>
+</div>
       </div>
-      <MarketplaceGrid initial={initial as any} initialCursor={nextCursor} myCountry={myCountry} />
+
+            <MarketplaceDiscovery
+        featured={discovery.featured}
+        local={discovery.local}
+        businesses={discovery.businesses}
+      />
+
+      <MarketplaceGrid
+        initial={listingResult.listings as unknown as Listing[]}
+        initialCursor={listingResult.nextCursor}
+        myCountry={myCountry}
+
+      />
     </main>
   );
 }
